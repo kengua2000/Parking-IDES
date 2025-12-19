@@ -41,178 +41,200 @@ class _CobroDialogState extends State<CobroDialog> {
   @override
   Widget build(BuildContext context) {
     final pagoSuficiente = _pagoCon >= widget.totalAPagar;
+    
+    // Lista de billetes disponibles para pago
+    final billetes = [2000, 5000, 10000, 20000, 50000, 100000];
 
-    return AlertDialog(
-      backgroundColor: AppColors.surfaceDark,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(24),
-        side: const BorderSide(
-          color: AppColors.surfaceBorder,
-          width: 1,
-        ),
-      ),
-      title: const Column(
-        children: [
-          Text(
-            'Confirmar Salida',
-            style: TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 18,
+    return Dialog( 
+      backgroundColor: Colors.transparent, 
+      child: ConstrainedBox( 
+        constraints: const BoxConstraints(maxWidth: 400),
+        child: Container(
+          decoration: BoxDecoration(
+            color: AppColors.surfaceDark,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: AppColors.surfaceBorder,
+              width: 1,
             ),
           ),
-          SizedBox(height: 8),
-          Divider(color: AppColors.surfaceBorder),
-        ],
-      ),
-      content: SizedBox(
-        width: double.maxFinite,
-        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24), 
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Tiempo Total
-              const Text(
-                'Tiempo Total:',
-                style: TextStyle(
-                  color: AppColors.textGray,
-                  fontSize: 12,
-                ),
-              ),
-              Text(
-                widget.tiempoTotal,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 16),
-
-              // Total a Pagar
-              const Text(
-                'Total a Pagar:',
-                style: TextStyle(
-                  color: AppColors.textGray,
-                  fontSize: 12,
-                ),
-              ),
-              Text(
-                CurrencyFormatter.format(widget.totalAPagar),
-                style: const TextStyle(
-                  color: AppColors.redExit,
-                  fontSize: 36,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              const Divider(color: AppColors.surfaceBorder),
-              const Text(
-                'Selecciona con cuánto paga:',
-                style: TextStyle(
-                  color: AppColors.textGray,
-                  fontSize: 12,
-                ),
-              ),
-              const SizedBox(height: 10),
-
-              // Botón Pago Exacto
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => _calcularDevuelta(widget.totalAPagar),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.surfaceLight,
-                    foregroundColor: AppColors.primary,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(50),
-                      side: BorderSide(
-                        color: _pagoCon == widget.totalAPagar
-                            ? AppColors.primary
-                            : Colors.transparent,
-                      ),
-                    ),
-                    elevation: 0,
-                  ),
-                  child: const Text(
-                    'Pago Exacto',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 10),
-
-              // Botones de billetes
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                alignment: WrapAlignment.center,
+              // Título manual
+              const Column(
                 children: [
-                  _buildBillButton(2000),
-                  _buildBillButton(5000),
-                  _buildBillButton(10000),
-                  _buildBillButton(20000),
-                  _buildBillButton(50000),
-                  _buildBillButton(100000),
+                  Text(
+                    'Confirmar Salida',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Divider(color: AppColors.surfaceBorder),
                 ],
               ),
-              const SizedBox(height: 20),
-
-              // Devuelta (Cambio)
-              const Text(
-                'Devuelta (Cambio):',
-                style: TextStyle(
-                  color: AppColors.textGray,
-                  fontSize: 14,
+              const SizedBox(height: 16),
+              
+              // Contenido
+              SizedBox(
+                width: double.maxFinite,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Tiempo Total
+                      const Text(
+                        'Tiempo Total:',
+                        style: TextStyle(
+                          color: AppColors.textGray,
+                          fontSize: 12,
+                        ),
+                      ),
+                      Text(
+                        widget.tiempoTotal,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+        
+                      // Total a Pagar
+                      const Text(
+                        'Total a Pagar:',
+                        style: TextStyle(
+                          color: AppColors.textGray,
+                          fontSize: 12,
+                        ),
+                      ),
+                      Text(
+                        CurrencyFormatter.format(widget.totalAPagar),
+                        style: const TextStyle(
+                          color: AppColors.primary, // Antes AppColors.redExit
+                          fontSize: 36,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+        
+                      const Divider(color: AppColors.surfaceBorder),
+                      const Text(
+                        'Selecciona con cuánto paga:',
+                        style: TextStyle(
+                          color: AppColors.textGray,
+                          fontSize: 12,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+        
+                      // Botón Pago Exacto
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () => _calcularDevuelta(widget.totalAPagar),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.surfaceLight,
+                            foregroundColor: AppColors.primary,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(50),
+                              side: BorderSide(
+                                color: _pagoCon == widget.totalAPagar
+                                    ? AppColors.primary
+                                    : Colors.transparent,
+                              ),
+                            ),
+                            elevation: 0,
+                          ),
+                          child: const Text(
+                            'Pago Exacto',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+        
+                      // Botones de billetes
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        alignment: WrapAlignment.center,
+                        children: billetes
+                            .where((valor) => valor >= widget.totalAPagar)
+                            .map((valor) => _buildBillButton(valor))
+                            .toList(),
+                      ),
+                      const SizedBox(height: 20),
+        
+                      // Devuelta (Cambio)
+                      const Text(
+                        'Devuelta (Cambio):',
+                        style: TextStyle(
+                          color: AppColors.textGray,
+                          fontSize: 14,
+                        ),
+                      ),
+                      Text(
+                        _pagoCon > 0 ? CurrencyFormatter.format(_devuelta) : '---',
+                        style: TextStyle(
+                          color: _devuelta >= 0
+                              ? AppColors.redExit // Antes AppColors.primary
+                              : AppColors.redExit,
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-              Text(
-                _pagoCon > 0 ? CurrencyFormatter.format(_devuelta) : '---',
-                style: TextStyle(
-                  color: _devuelta >= 0
-                      ? AppColors.primary
-                      : AppColors.redExit,
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                ),
+              const SizedBox(height: 24),
+
+              // Botones de acción manuales
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text(
+                      'Cancelar',
+                      style: TextStyle(color: Colors.white38),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton(
+                    onPressed: pagoSuficiente ? widget.onCobrar : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      disabledBackgroundColor: AppColors.surfaceLight.withValues(alpha:0.5),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 12,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(50),
+                      ),
+                    ),
+                    child: Text(
+                      'COBRAR Y SALIR',
+                      style: TextStyle(
+                        color: pagoSuficiente
+                            ? AppColors.backgroundDark
+                            : Colors.white30,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text(
-            'Cancelar',
-            style: TextStyle(color: Colors.white38),
-          ),
-        ),
-        ElevatedButton(
-          onPressed: pagoSuficiente ? widget.onCobrar : null,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.primary,
-            disabledBackgroundColor: AppColors.surfaceLight.withValues(alpha:0.5),
-            padding: const EdgeInsets.symmetric(
-              horizontal: 20,
-              vertical: 12,
-            ),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(50),
-            ),
-          ),
-          child: Text(
-            'COBRAR Y SALIR',
-            style: TextStyle(
-              color: pagoSuficiente
-                  ? AppColors.backgroundDark
-                  : Colors.white30,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-      ],
     );
   }
 

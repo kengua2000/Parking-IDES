@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../../config/theme/app_colors.dart';
 import '../../../../core/utils/date_formatter.dart';
+import '../../../../core/utils/currency_formatter.dart';
 
 /// Item de actividad reciente en la pantalla principal
 class RecentActivityItem extends StatelessWidget {
@@ -94,7 +95,7 @@ class RecentActivityItem extends StatelessWidget {
               ),
               if (!isActive)
                 Text(
-                  '\$${data['costo']}',
+                  CurrencyFormatter.format(data['costo']),
                   style: const TextStyle(
                     color: AppColors.primary,
                     fontSize: 12,

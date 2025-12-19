@@ -48,7 +48,7 @@ class VehicleTypeSelector extends StatelessWidget {
         onTap: () => onTypeChanged(text),
         child: Container(
           decoration: BoxDecoration(
-            color: isActive ? Colors.white : Colors.transparent,
+            color: isActive ? AppColors.primary : Colors.transparent, // Cambiado de Colors.white a AppColors.primary
             borderRadius: BorderRadius.circular(50),
             boxShadow: isActive
                 ? [

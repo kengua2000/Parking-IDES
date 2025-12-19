@@ -6,6 +6,7 @@ import '../../../core/utils/currency_formatter.dart';
 import '../../../data/services/firestore_service.dart';
 import '../../widgets/common/circle_icon_button.dart';
 import '../../widgets/dialogs/cobro_dialog.dart';
+import '../../widgets/dialogs/summary_dialog.dart';
 import '../list/list_screen.dart';
 import 'widgets/main_header.dart';
 import 'widgets/vehicle_type_selector.dart';
@@ -241,59 +242,64 @@ class _MainScreenState extends State<MainScreen> {
     final hasManualTime = _manualTimeController.text.isNotEmpty;
 
     return Scaffold(
-      backgroundColor: AppColors.backgroundDark,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Top Bar
-              _buildTopBar(),
-              const SizedBox(height: 24),
+        backgroundColor: AppColors.backgroundDark,
+        body: SafeArea(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 480), // Ya estaba ajustado aquí
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Top Bar
+                    _buildTopBar(),
+                    const SizedBox(height: 24),
 
-              // Header
-              const MainHeader(),
-              const SizedBox(height: 24),
+                    // Header
+                    const MainHeader(),
+                    const SizedBox(height: 24),
 
-              // Selector de tipo de vehículo
-              VehicleTypeSelector(
-                selectedType: _vehicleType,
-                onTypeChanged: (type) => setState(() => _vehicleType = type),
+                    // Selector de tipo de vehículo
+                    VehicleTypeSelector(
+                      selectedType: _vehicleType,
+                      onTypeChanged: (type) => setState(() => _vehicleType = type),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Input de ticket
+                    TicketInputSection(
+                      ticketController: _ticketController,
+                      manualTimeController: _manualTimeController,
+                      hasManualTime: hasManualTime,
+                      onSelectTime: _selectTime,
+                      onClearManualTime: () {
+                        setState(() => _manualTimeController.clear());
+                      },
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Botones de acción
+                    _buildActionButtons(),
+                    const SizedBox(height: 24),
+
+                    // Feedback de última acción
+                    if (_lastActionText.isNotEmpty)
+                      ActivityFeedbackCard(message: _lastActionText),
+
+                    if (_lastActionText.isNotEmpty)
+                      const SizedBox(height: 24),
+
+                    // Lista de actividad reciente
+                    _buildRecentActivitySection(),
+                    const SizedBox(height: 40),
+                  ],
+                ),
               ),
-              const SizedBox(height: 24),
-
-              // Input de ticket
-              TicketInputSection(
-                ticketController: _ticketController,
-                manualTimeController: _manualTimeController,
-                hasManualTime: hasManualTime,
-                onSelectTime: _selectTime,
-                onClearManualTime: () {
-                  setState(() => _manualTimeController.clear());
-                },
               ),
-              const SizedBox(height: 24),
-
-              // Botones de acción
-              _buildActionButtons(),
-              const SizedBox(height: 24),
-
-              // Feedback de última acción
-              if (_lastActionText.isNotEmpty)
-                ActivityFeedbackCard(message: _lastActionText),
-
-              if (_lastActionText.isNotEmpty)
-                const SizedBox(height: 24),
-
-              // Lista de actividad reciente
-              _buildRecentActivitySection(),
-              const SizedBox(height: 40),
-            ],
-          ),
+            ),
         ),
-      ),
-    );
+      );
   }
 
   /// Top bar con iconos de menú y configuración
@@ -301,7 +307,16 @@ class _MainScreenState extends State<MainScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        CircleIconButton(icon: Icons.menu, onPressed: () {}),
+        // Botón de resumen (antes menú)
+        CircleIconButton(
+            icon: Icons.insert_chart, 
+            onPressed: () {
+              showDialog(
+                context: context,
+                builder: (context) => const SummaryDialog(),
+              );
+            }
+        ),
         const Text(
           'ParkingApp',
           style: TextStyle(
@@ -310,7 +325,16 @@ class _MainScreenState extends State<MainScreen> {
             fontWeight: FontWeight.bold,
           ),
         ),
-        CircleIconButton(icon: Icons.settings, onPressed: () {}),
+        // Botón de ver todo (antes configuración)
+        CircleIconButton(
+            icon: Icons.visibility,
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ListScreen()),
+              );
+            }
+        ),
       ],
     );
   }
@@ -397,10 +421,10 @@ class _MainScreenState extends State<MainScreen> {
   Widget _buildRecentActivitySection() {
     return Column(
       children: [
-        Row(
+        const Row( // CAMBIO: Eliminado el botón "Ver Todo"
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text(
+            Text(
               'Actividad Reciente',
               style: TextStyle(
                 color: Colors.white,
@@ -408,18 +432,7 @@ class _MainScreenState extends State<MainScreen> {
                 fontWeight: FontWeight.bold,
               ),
             ),
-            TextButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const ListScreen()),
-                );
-              },
-              child: const Text(
-                'Ver Todo',
-                style: TextStyle(color: AppColors.primary),
-              ),
-            ),
+            // "Ver todo" eliminado de aquí
           ],
         ),
         const SizedBox(height: 12),
