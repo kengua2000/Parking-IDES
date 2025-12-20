@@ -71,7 +71,7 @@ class SummaryDialog extends StatelessWidget {
                         mainAxisAlignment: MainAxisAlignment.spaceAround,
                         children: [
                           _buildStat('Total', '$totalCars'),
-                          _buildStat('Ingresos', CurrencyFormatter.formatShort(totalIncome)),
+                          _buildStat('Ingresos', CurrencyFormatter.format(totalIncome)),
                         ],
                       ),
                       const Divider(color: Colors.white24, height: 32),
@@ -83,42 +83,54 @@ class SummaryDialog extends StatelessWidget {
                           style: TextStyle(color: Colors.white54),
                         )
                       else
-                        ...sortedKeys.map((costo) {
-                          final cantidad = counts[costo];
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 4),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  CurrencyFormatter.format(costo),
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 16,
+                        Container(
+                          decoration: BoxDecoration(
+                            border: Border.all(color: Colors.white12),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Table(
+                            columnWidths: const {
+                              0: FlexColumnWidth(2), // Columna de Valor
+                              1: FlexColumnWidth(1), // Columna de Cantidad
+                            },
+                            defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+                            children: sortedKeys.map((costo) {
+                              final cantidad = counts[costo];
+                              final isLast = costo == sortedKeys.last;
+                              return TableRow(
+                                decoration: BoxDecoration(
+                                  border: isLast ? null : const Border(
+                                    bottom: BorderSide(color: Colors.white12),
                                   ),
                                 ),
-                                Container(
-                                  width: 100, // Línea punteada visual
-                                  alignment: Alignment.center,
-                                  child: Text(
-                                    '-' * 15,
-                                    style: const TextStyle(color: Colors.white24),
-                                    overflow: TextOverflow.clip,
-                                    maxLines: 1,
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                                    child: Text(
+                                      CurrencyFormatter.format(costo),
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 16,
+                                      ),
+                                    ),
                                   ),
-                                ),
-                                Text(
-                                  '$cantidad',
-                                  style: const TextStyle(
-                                    color: AppColors.primary,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                                    child: Text(
+                                      '$cantidad',
+                                      textAlign: TextAlign.end,
+                                      style: const TextStyle(
+                                        color: AppColors.primary,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
                                   ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }),
+                                ],
+                              );
+                            }).toList(),
+                          ),
+                        ),
                     ],
                   );
                 },

@@ -26,6 +26,7 @@ class FirestoreService {
     required DateTime fechaEntrada,
     required String dia,
   }) async {
+    // Usamos 'ultima_actividad' para ordenar unificadamente entradas y salidas
     await _vehiclesCollection.add({
       'ticket': ticket,
       'tipo': tipo,
@@ -35,6 +36,7 @@ class FirestoreService {
       'dia': dia,
       'costo': 0,
       'minutos': 0,
+      'ultima_actividad': Timestamp.fromDate(fechaEntrada), // NUEVO CAMPO
     });
   }
 
@@ -46,6 +48,23 @@ class FirestoreService {
         .get();
 
     return snapshot.docs.isNotEmpty ? snapshot.docs.first : null;
+  }
+
+  /// Elimina un vehículo activo por ticket (Corrección de errores)
+  Future<void> deleteActiveVehicle(String ticket) async {
+    final snapshot = await _vehiclesCollection
+        .where('ticket', isEqualTo: ticket)
+        .where('estado', isEqualTo: 'ADENTRO')
+        .get();
+
+    if (snapshot.docs.isEmpty) {
+      throw 'No se encontró ningún vehículo activo con ese ticket para eliminar.';
+    }
+
+    // Borramos el documento encontrado
+    for (var doc in snapshot.docs) {
+      await doc.reference.delete();
+    }
   }
 
   /// Registra la salida de un vehículo
@@ -60,13 +79,14 @@ class FirestoreService {
       'costo': costo,
       'minutos': minutos,
       'estado': 'SALIDO',
+      'ultima_actividad': Timestamp.fromDate(fechaSalida), // ACTUALIZAMOS CAMPO
     });
   }
 
   /// Obtiene stream de vehículos recientes (últimos 3)
   Stream<List<VehicleModel>> getRecentVehicles() {
     return _vehiclesCollection
-        .orderBy('fecha_entrada', descending: true)
+        .orderBy('ultima_actividad', descending: true)
         .limit(3)
         .snapshots()
         .map((snapshot) => snapshot.docs

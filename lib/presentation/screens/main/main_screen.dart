@@ -30,6 +30,7 @@ class _MainScreenState extends State<MainScreen> {
   // Estado
   String _vehicleType = 'Carro';
   String _lastActionText = '';
+  bool _isErrorState = false;
 
   // Servicios
   final FirestoreService _firestoreService = FirestoreService();
@@ -61,7 +62,7 @@ class _MainScreenState extends State<MainScreen> {
     final ticket = _ticketController.text.trim();
 
     if (ticket.isEmpty) {
-      _showToast('Escribe el ticket/placa');
+      _showErrorInCard('Escribe el ticket/placa');
       return;
     }
 
@@ -76,7 +77,7 @@ class _MainScreenState extends State<MainScreen> {
           DateTime.now(),
         );
       } catch (e) {
-        _showToast('Formato de hora incorrecto');
+        _showErrorInCard('Formato de hora incorrecto');
         return;
       }
     }
@@ -84,7 +85,7 @@ class _MainScreenState extends State<MainScreen> {
     // Verificar si ya está adentro
     final isInside = await _firestoreService.isVehicleInside(ticket);
     if (isInside) {
-      _showToast('El vehículo $ticket ya está ADENTRO');
+      _showErrorInCard('El vehículo $ticket ya está ADENTRO');
       return;
     }
 
@@ -99,14 +100,14 @@ class _MainScreenState extends State<MainScreen> {
 
       _ticketController.clear();
       _manualTimeController.clear();
-      _showToast('Entrada registrada');
-
+      
       setState(() {
+        _isErrorState = false;
         _lastActionText = 'Entrada registrada para Ticket #$ticket - '
             '${DateFormatter.formatDisplayTime(entryDate)}';
       });
     } catch (e) {
-      _showToast('Error al registrar entrada: $e');
+      _showErrorInCard('Error al registrar entrada: $e');
     }
   }
 
@@ -115,7 +116,7 @@ class _MainScreenState extends State<MainScreen> {
     final ticket = _ticketController.text.trim();
 
     if (ticket.isEmpty) {
-      _showToast('Escribe el ticket');
+      _showErrorInCard('Escribe el ticket');
       return;
     }
 
@@ -126,7 +127,7 @@ class _MainScreenState extends State<MainScreen> {
       final doc = await _firestoreService.findActiveVehicle(ticket);
 
       if (doc == null) {
-        _showToast('Ticket no encontrado o ya salió');
+        _showErrorInCard('Ticket no encontrado o ya salió');
         return;
       }
 
@@ -169,11 +170,61 @@ class _MainScreenState extends State<MainScreen> {
         totalMinutes: minutes,
       );
     } catch (e) {
-      _showToast('Error: $e');
+      _showErrorInCard('Error: $e');
     }
   }
 
-  /// Muestra diálogo de cobro
+  /// Elimina un registro de vehículo (corrección de errores)
+  void _deleteRecord() async {
+    final ticket = _ticketController.text.trim();
+
+    if (ticket.isEmpty) {
+      _showErrorInCard('Escribe el ticket para borrar');
+      return;
+    }
+
+    FocusScope.of(context).unfocus();
+
+    // Confirmación
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surfaceDark,
+        title: const Text('Eliminar Registro', style: TextStyle(color: Colors.white)),
+        content: Text(
+          '¿Estás seguro de eliminar el registro activo del ticket #$ticket? Esta acción no se puede deshacer.',
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar', style: TextStyle(color: Colors.white54)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('ELIMINAR', style: TextStyle(color: AppColors.redExit)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      await _firestoreService.deleteActiveVehicle(ticket);
+      
+      _ticketController.clear();
+      _manualTimeController.clear();
+      
+      setState(() {
+        _isErrorState = false;
+        _lastActionText = 'Registro eliminado para Ticket #$ticket';
+      });
+    } catch (e) {
+      _showErrorInCard('Error al eliminar: $e');
+    }
+  }
+
   /// Muestra diálogo de cobro
   void _showChargeDialog({
     required String docId,
@@ -194,14 +245,12 @@ class _MainScreenState extends State<MainScreen> {
       builder: (dialogContext) {
         return CobroDialog(
           ticket: ticket,
+          tipo: tipo,
           totalAPagar: total,
           tiempoTotal: timeFormat,
           onCobrar: () async {
-
             final navigator = Navigator.of(dialogContext);
-            final scaffoldMessenger = ScaffoldMessenger.of(context);
 
-            // Registrar salida en Firestore
             await _firestoreService.registerExit(
               docId: docId,
               fechaSalida: exitDate,
@@ -209,18 +258,14 @@ class _MainScreenState extends State<MainScreen> {
               minutos: totalMinutes,
             );
 
-
             if (!mounted) return;
 
             navigator.pop();
             _ticketController.clear();
             _manualTimeController.clear();
 
-            scaffoldMessenger.showSnackBar(
-              const SnackBar(content: Text('Salida registrada y cobrada')),
-            );
-
             setState(() {
+              _isErrorState = false;
               _lastActionText = 'Salida Ticket #$ticket - '
                   'Cobrado: ${CurrencyFormatter.format(total)}';
             });
@@ -230,11 +275,12 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 
-  /// Muestra mensaje toast
-  void _showToast(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+  /// Muestra error directamente en la tarjeta de feedback
+  void _showErrorInCard(String message) {
+    setState(() {
+      _isErrorState = true;
+      _lastActionText = message;
+    });
   }
 
   @override
@@ -243,6 +289,20 @@ class _MainScreenState extends State<MainScreen> {
 
     return Scaffold(
         backgroundColor: AppColors.backgroundDark,
+        floatingActionButton: FloatingActionButton(
+          onPressed: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ListScreen()),
+            );
+          },
+          backgroundColor: AppColors.primary,
+          child: const Icon(
+            Icons.visibility,
+            color: AppColors.backgroundDark,
+            size: 30,
+          ),
+        ),
         body: SafeArea(
             child: Center(
               child: ConstrainedBox(
@@ -281,11 +341,31 @@ class _MainScreenState extends State<MainScreen> {
 
                     // Botones de acción
                     _buildActionButtons(),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 16),
+                    
+                    // Botón de eliminar (NUEVO)
+                    Center(
+                      child: TextButton.icon(
+                        onPressed: _deleteRecord,
+                        icon: const Icon(Icons.delete_outline, size: 18, color: Colors.white38),
+                        label: const Text(
+                          'Eliminar registro',
+                          style: TextStyle(color: Colors.white38, fontSize: 12),
+                        ),
+                        style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
 
-                    // Feedback de última acción
+                    // Feedback de última acción (o error)
                     if (_lastActionText.isNotEmpty)
-                      ActivityFeedbackCard(message: _lastActionText),
+                      ActivityFeedbackCard(
+                        message: _lastActionText,
+                        isError: _isErrorState,
+                      ),
 
                     if (_lastActionText.isNotEmpty)
                       const SizedBox(height: 24),
@@ -307,7 +387,6 @@ class _MainScreenState extends State<MainScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        // Botón de resumen (antes menú)
         CircleIconButton(
             icon: Icons.insert_chart, 
             onPressed: () {
@@ -325,16 +404,7 @@ class _MainScreenState extends State<MainScreen> {
             fontWeight: FontWeight.bold,
           ),
         ),
-        // Botón de ver todo (antes configuración)
-        CircleIconButton(
-            icon: Icons.visibility,
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const ListScreen()),
-              );
-            }
-        ),
+        const SizedBox(width: 40),
       ],
     );
   }
@@ -358,7 +428,7 @@ class _MainScreenState extends State<MainScreen> {
             label: 'SALIDA',
             icon: Icons.arrow_upward,
             backgroundColor: AppColors.redExit,
-            textColor: Colors.white,
+            textColor: AppColors.backgroundDark,
             onPressed: _processExit,
           ),
         ),
@@ -421,7 +491,7 @@ class _MainScreenState extends State<MainScreen> {
   Widget _buildRecentActivitySection() {
     return Column(
       children: [
-        const Row( // CAMBIO: Eliminado el botón "Ver Todo"
+        const Row( 
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
@@ -432,7 +502,6 @@ class _MainScreenState extends State<MainScreen> {
                 fontWeight: FontWeight.bold,
               ),
             ),
-            // "Ver todo" eliminado de aquí
           ],
         ),
         const SizedBox(height: 12),
@@ -441,7 +510,7 @@ class _MainScreenState extends State<MainScreen> {
         StreamBuilder<QuerySnapshot>(
           stream: FirebaseFirestore.instance
               .collection('vehiculos')
-              .orderBy('fecha_entrada', descending: true)
+              .orderBy('ultima_actividad', descending: true)
               .limit(3)
               .snapshots(),
           builder: (context, snapshot) {

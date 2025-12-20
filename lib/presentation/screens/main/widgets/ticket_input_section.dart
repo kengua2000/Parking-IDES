@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../../config/theme/app_colors.dart';
 
 /// Sección de input para número de ticket con selector de hora
@@ -49,6 +50,10 @@ class TicketInputSection extends StatelessWidget {
           child: TextField(
             controller: ticketController,
             textAlign: TextAlign.center,
+            keyboardType: TextInputType.number,
+            inputFormatters: [
+              FilteringTextInputFormatter.digitsOnly,
+            ],
             style: const TextStyle(
               color: Colors.white,
               fontSize: 40,

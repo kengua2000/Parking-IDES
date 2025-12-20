@@ -5,6 +5,7 @@ import '../../../core/utils/currency_formatter.dart';
 /// Diálogo de confirmación de cobro con cálculo de cambio
 class CobroDialog extends StatefulWidget {
   final String ticket;
+  final String tipo; // Añadido para mostrar si es Carro/Moto
   final int totalAPagar;
   final String tiempoTotal;
   final VoidCallback onCobrar;
@@ -12,6 +13,7 @@ class CobroDialog extends StatefulWidget {
   const CobroDialog({
     super.key,
     required this.ticket,
+    this.tipo = 'Vehículo', // Valor por defecto para compatibilidad
     required this.totalAPagar,
     required this.tiempoTotal,
     required this.onCobrar,
@@ -43,7 +45,12 @@ class _CobroDialogState extends State<CobroDialog> {
     final pagoSuficiente = _pagoCon >= widget.totalAPagar;
     
     // Lista de billetes disponibles para pago
-    final billetes = [2000, 5000, 10000, 20000, 50000, 100000];
+    // AÑADIDOS 4000, 7000, 8000, 9000 como solicitado
+    final billetesBase = [2000, 4000, 5000, 6000, 7000,  8000, 9000, 10000, 20000, 50000, 100000];
+    
+    // Filtramos solo los que son mayores o iguales al total a pagar
+    // O si quieres mostrarlos todos, quita el .where
+    final billetes = billetesBase;
 
     return Dialog( 
       backgroundColor: Colors.transparent, 
@@ -120,6 +127,18 @@ class _CobroDialogState extends State<CobroDialog> {
                           fontWeight: FontWeight.w900,
                         ),
                       ),
+
+                      // NUEVO: Ticket #1234 ( Carro )
+                      const SizedBox(height: 4),
+                      Text(
+                        'Ticket #${widget.ticket} ( ${widget.tipo} )',
+                        style: const TextStyle(
+                          color: Colors.white54,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+
                       const SizedBox(height: 20),
         
                       const Divider(color: AppColors.surfaceBorder),

@@ -8,7 +8,18 @@ class AppTheme {
   /// Tema oscuro de la aplicación
   static ThemeData get darkTheme {
     return ThemeData(
-      primarySwatch: Colors.green,
+      useMaterial3: true,
+      brightness: Brightness.dark, // Define explícitamente que es un tema oscuro
+      
+      // Definimos el esquema de colores para asegurar contrastes correctos
+      colorScheme: const ColorScheme.dark(
+        primary: AppColors.primary,
+        onPrimary: AppColors.backgroundDark,
+        surface: AppColors.surfaceDark,
+        onSurface: Colors.white,
+        error: AppColors.redExit,
+      ),
+
       scaffoldBackgroundColor: AppColors.backgroundDark,
       fontFamily: 'Noto Sans',
 
@@ -34,20 +45,18 @@ class AppTheme {
         }),
 
         // AM/PM Selector
-        // Aquí usamos un color MUY diferente para la selección para que resalte
         dayPeriodColor: WidgetStateColor.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
             return AppColors.primary;
           }
-          // Color para la opción NO seleccionada
           return Colors.transparent; 
         }),
         
         dayPeriodTextColor: WidgetStateColor.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return Colors.black; // Texto negro para máximo contraste
+            return AppColors.backgroundDark; // Texto oscuro para máximo contraste con verde
           }
-          return Colors.white70; // Texto un poco apagado para lo no seleccionado
+          return Colors.white70; // Texto blanco apagado
         }),
 
         // Borde del selector AM/PM
@@ -62,11 +71,34 @@ class AppTheme {
         
         entryModeIconColor: AppColors.primary,
         helpTextStyle: const TextStyle(color: Colors.white),
+        
         confirmButtonStyle: ButtonStyle(
           foregroundColor: WidgetStateProperty.all(AppColors.primary),
         ),
         cancelButtonStyle: ButtonStyle(
           foregroundColor: WidgetStateProperty.all(Colors.white),
+        ),
+        
+        // Estilo de los inputs (Etiquetas "Hour" y "Minute")
+        inputDecorationTheme: const InputDecorationTheme(
+          labelStyle: TextStyle(color: Colors.white),
+          helperStyle: TextStyle(color: Colors.white),
+          hintStyle: TextStyle(color: Colors.white54),
+
+          // Padding equilibrado
+          contentPadding: EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+          
+          filled: true,
+          fillColor: AppColors.inputBg,
+          border: OutlineInputBorder(
+            borderSide: BorderSide(color: AppColors.surfaceBorder),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderSide: BorderSide(color: AppColors.surfaceBorder),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderSide: BorderSide(color: AppColors.primary),
+          ),
         ),
       ),
     );
