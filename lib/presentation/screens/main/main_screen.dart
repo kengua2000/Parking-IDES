@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../../config/theme/app_theme.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../core/utils/date_formatter.dart';
 import '../../../core/utils/currency_formatter.dart';
@@ -42,12 +43,11 @@ class _MainScreenState extends State<MainScreen> {
     super.dispose();
   }
 
-  /// Muestra selector de hora
+  /// Muestra selector de hora estilo Cupertino (Wheel)
   Future<void> _selectTime() async {
-    final picked = await showTimePicker(
+    final picked = await AppTheme.showCupertinoTimePicker(
       context: context,
       initialTime: TimeOfDay.now(),
-      helpText: 'SELECCIONA HORA',
     );
 
     if (picked != null) {
@@ -62,7 +62,7 @@ class _MainScreenState extends State<MainScreen> {
     final ticket = _ticketController.text.trim();
 
     if (ticket.isEmpty) {
-      _showErrorInCard('Escribe el ticket/placa');
+      _showErrorInCard('Escribe el ticket');
       return;
     }
 
@@ -397,7 +397,7 @@ class _MainScreenState extends State<MainScreen> {
             }
         ),
         const Text(
-          'ParkingApp',
+          'Parqueadero IDES',
           style: TextStyle(
             color: Colors.white,
             fontSize: 18,

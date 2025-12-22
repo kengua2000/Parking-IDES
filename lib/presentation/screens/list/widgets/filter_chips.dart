@@ -5,11 +5,17 @@ import '../../../../config/theme/app_colors.dart';
 class FilterChips extends StatelessWidget {
   final String selectedFilter;
   final Function(String) onFilterChanged;
+  final int countInParking;
+  final int countExits;
+  final Widget? trailing; // Widget opcional al final de los chips
 
   const FilterChips({
     super.key,
     required this.selectedFilter,
     required this.onFilterChanged,
+    this.countInParking = 0,
+    this.countExits = 0,
+    this.trailing,
   });
 
   @override
@@ -17,19 +23,28 @@ class FilterChips extends StatelessWidget {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           _buildFilterChip('Todos'),
           const SizedBox(width: 12),
-          _buildFilterChip('En Parqueadero'),
+          _buildFilterChip('En Parqueadero', count: countInParking),
           const SizedBox(width: 12),
-          _buildFilterChip('Salidas'),
+          _buildFilterChip('Salidas', count: countExits),
+          
+          if (trailing != null) ...[
+            const SizedBox(width: 12),
+            trailing!,
+          ]
         ],
       ),
     );
   }
 
-  Widget _buildFilterChip(String label) {
+  Widget _buildFilterChip(String label, {int? count}) {
     final isSelected = selectedFilter == label;
+    
+    // Construir el texto final: "Etiqueta" o "Etiqueta (N)"
+    final displayText = count != null ? '$label ($count)' : label;
 
     return GestureDetector(
       onTap: () => onFilterChanged(label),
@@ -51,7 +66,7 @@ class FilterChips extends StatelessWidget {
               : [],
         ),
         child: Text(
-          label,
+          displayText,
           style: TextStyle(
             color: isSelected ? Colors.black : Colors.white,
             fontWeight: FontWeight.bold,

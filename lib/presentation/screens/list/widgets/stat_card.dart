@@ -4,17 +4,19 @@ import '../../../../config/theme/app_colors.dart';
 /// Card de estadística con icono, título, valor y porcentaje
 class StatCard extends StatelessWidget {
   final String title;
-  final String value;
+  final String? value;
+  final Widget? customValue;
   final String percent;
   final IconData icon;
 
   const StatCard({
     super.key,
     required this.title,
-    required this.value,
+    this.value,
+    this.customValue,
     required this.percent,
     required this.icon,
-  });
+  }) : assert(value != null || customValue != null, 'Must provide value or customValue');
 
   @override
   Widget build(BuildContext context) {
@@ -67,8 +69,8 @@ class StatCard extends StatelessWidget {
               Flexible(
                 child: FittedBox(
                   fit: BoxFit.scaleDown,
-                  child: Text(
-                    value,
+                  child: customValue ?? Text(
+                    value!,
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 24,

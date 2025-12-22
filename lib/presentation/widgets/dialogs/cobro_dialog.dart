@@ -31,6 +31,10 @@ class _CobroDialogState extends State<CobroDialog> {
   void initState() {
     super.initState();
     _pagoCon = 0;
+    // Asegurar que el teclado se cierre al abrir el diálogo
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      FocusScope.of(context).unfocus();
+    });
   }
 
   void _calcularDevuelta(int valorEntregado) {
@@ -40,20 +44,41 @@ class _CobroDialogState extends State<CobroDialog> {
     });
   }
 
+  /// Obtiene las opciones de pago según el total a pagar
+  List<int> _getOpcionesPago(int total) {
+    switch (total) {
+      case 2000:
+        return [5000, 10000, 20000, 50000, 100000];
+      case 2500:
+        return [3000, 4000, 5000, 10000, 20000, 50000, 100000];
+      case 3000:
+        return [4000, 5000, 10000, 20000, 50000, 100000];
+      case 3500:
+        return [4000, 5000, 10000, 20000, 50000, 100000];
+      case 4000:
+        return [5000, 10000, 20000, 50000, 100000];
+      case 5000:
+        return [6000, 10000, 20000, 50000, 100000];
+      case 5500:
+        return [5000, 6000, 7000, 10000, 20000, 50000, 100000];
+      case 6000:
+        return [7000, 10000, 20000, 50000, 100000];
+      default:
+        final standard = [2000, 5000, 10000, 20000, 50000, 100000];
+        return standard.where((b) => b >= total).toList();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final pagoSuficiente = _pagoCon >= widget.totalAPagar;
     
-    // Lista de billetes disponibles para pago
-    // AÑADIDOS 4000, 7000, 8000, 9000 como solicitado
-    final billetesBase = [2000, 4000, 5000, 6000, 7000,  8000, 9000, 10000, 20000, 50000, 100000];
-    
-    // Filtramos solo los que son mayores o iguales al total a pagar
-    // O si quieres mostrarlos todos, quita el .where
-    final billetes = billetesBase;
+    // Obtenemos la lista específica de billetes para este monto
+    final billetes = _getOpcionesPago(widget.totalAPagar);
 
     return Dialog( 
-      backgroundColor: Colors.transparent, 
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24), // Añadido padding para evitar bordes
       child: ConstrainedBox( 
         constraints: const BoxConstraints(maxWidth: 400),
         child: Container(
@@ -86,9 +111,8 @@ class _CobroDialogState extends State<CobroDialog> {
               ),
               const SizedBox(height: 16),
               
-              // Contenido
-              SizedBox(
-                width: double.maxFinite,
+              // Contenido Flexible con Scroll
+              Flexible(
                 child: SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -122,13 +146,13 @@ class _CobroDialogState extends State<CobroDialog> {
                       Text(
                         CurrencyFormatter.format(widget.totalAPagar),
                         style: const TextStyle(
-                          color: AppColors.primary, // Antes AppColors.redExit
+                          color: AppColors.primary,
                           fontSize: 36,
                           fontWeight: FontWeight.w900,
                         ),
                       ),
 
-                      // NUEVO: Ticket #1234 ( Carro )
+                      // Ticket Info
                       const SizedBox(height: 4),
                       Text(
                         'Ticket #${widget.ticket} ( ${widget.tipo} )',
@@ -183,7 +207,6 @@ class _CobroDialogState extends State<CobroDialog> {
                         runSpacing: 8,
                         alignment: WrapAlignment.center,
                         children: billetes
-                            .where((valor) => valor >= widget.totalAPagar)
                             .map((valor) => _buildBillButton(valor))
                             .toList(),
                       ),
@@ -201,7 +224,7 @@ class _CobroDialogState extends State<CobroDialog> {
                         _pagoCon > 0 ? CurrencyFormatter.format(_devuelta) : '---',
                         style: TextStyle(
                           color: _devuelta >= 0
-                              ? AppColors.redExit // Antes AppColors.primary
+                              ? AppColors.redExit
                               : AppColors.redExit,
                               fontSize: 28,
                               fontWeight: FontWeight.bold,

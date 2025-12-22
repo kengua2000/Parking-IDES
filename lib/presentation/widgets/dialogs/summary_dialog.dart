@@ -40,7 +40,6 @@ class SummaryDialog extends StatelessWidget {
                     .collection('vehiculos')
                     .where('dia', isEqualTo: today)
                     .where('estado', isEqualTo: 'SALIDO')
-                    .where('tipo', isEqualTo: 'Carro')
                     .snapshots(),
                 builder: (context, snapshot) {
                   if (!snapshot.hasData) {
@@ -50,7 +49,7 @@ class SummaryDialog extends StatelessWidget {
                   // Agrupar por costo
                   final Map<int, int> counts = {};
                   int totalIncome = 0;
-                  int totalCars = 0;
+                  int totalVehicles = 0;
 
                   for (var doc in snapshot.data!.docs) {
                     final data = doc.data() as Map<String, dynamic>;
@@ -58,7 +57,7 @@ class SummaryDialog extends StatelessWidget {
                     
                     counts[costo] = (counts[costo] ?? 0) + 1;
                     totalIncome += costo;
-                    totalCars += 1;
+                    totalVehicles += 1;
                   }
 
                   // Ordenar claves
@@ -70,7 +69,7 @@ class SummaryDialog extends StatelessWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceAround,
                         children: [
-                          _buildStat('Total', '$totalCars'),
+                          _buildStat('Total', '$totalVehicles'),
                           _buildStat('Ingresos', CurrencyFormatter.format(totalIncome)),
                         ],
                       ),

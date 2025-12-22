@@ -117,6 +117,13 @@ class FirestoreService {
 
     // Cobrar $500 por cada hora adicional después de la primera
     final horasAdicionales = ((minutes - 60) / 60).ceil();
-    return tarifa + (horasAdicionales * 500);
+    final total = tarifa + (horasAdicionales * 500);
+
+    // Tope máximo de 6000
+    if (total > 6000) {
+      return 6000;
+    }
+
+    return total;
   }
 }

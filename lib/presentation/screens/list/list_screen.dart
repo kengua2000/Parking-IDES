@@ -24,7 +24,12 @@ class _ListScreenState extends State<ListScreen> {
   List<QueryDocumentSnapshot> _fullList = [];
   bool _isLoading = true;
   int _totalVehicles = 0;
+  int _totalCars = 0;
+  int _totalMotos = 0;
   int _totalIncome = 0;
+  int _countInParking = 0; // Contador de vehículos adentro
+  int _countExits = 0;     // Contador de salidas
+  bool _sortAscending = false;
 
   @override
   void initState() {
@@ -43,18 +48,31 @@ class _ListScreenState extends State<ListScreen> {
         .listen((snapshot) {
       var docs = snapshot.docs;
 
-      // Ordenar por fecha de entrada (más recientes primero)
-      docs.sort((a, b) {
-        Timestamp tsA = a['fecha_entrada'] ?? a['entrada'];
-        Timestamp tsB = b['fecha_entrada'] ?? b['entrada'];
-        return tsB.compareTo(tsA);
-      });
-
-      // Calcular ingresos totales
+      // Calcular ingresos totales y conteo por tipo
       int income = 0;
+      int cars = 0;
+      int motos = 0;
+      int inParking = 0;
+      int exits = 0;
+
       for (var doc in docs) {
-        if (doc['estado'] == 'SALIDO') {
-          income += (doc['costo'] as num).toInt();
+        final data = doc.data() as Map<String, dynamic>;
+        final estado = data['estado'] ?? 'ADENTRO';
+
+        // Contar por tipo
+        final tipo = data['tipo'] ?? 'Carro';
+        if (tipo == 'Carro') {
+          cars++;
+        } else if (tipo == 'Moto') {
+          motos++;
+        }
+
+        // Contar por estado
+        if (estado == 'ADENTRO') {
+          inParking++;
+        } else if (estado == 'SALIDO') {
+          exits++;
+          income += (data['costo'] as num).toInt();
         }
       }
 
@@ -62,33 +80,92 @@ class _ListScreenState extends State<ListScreen> {
         setState(() {
           _fullList = docs;
           _totalVehicles = docs.length;
+          _totalCars = cars;
+          _totalMotos = motos;
           _totalIncome = income;
+          _countInParking = inParking;
+          _countExits = exits;
           _isLoading = false;
         });
       }
     });
   }
 
-  /// Lista filtrada según selección
+  /// Lista filtrada según selección y ordenamiento
   List<QueryDocumentSnapshot> get _filteredList {
+    List<QueryDocumentSnapshot> list = [];
+    
     if (_filter == 'En Parqueadero') {
-      return _fullList.where((doc) => doc['estado'] == 'ADENTRO').toList();
+      list = _fullList.where((doc) => doc['estado'] == 'ADENTRO').toList();
+    } else if (_filter == 'Salidas') {
+      list = _fullList.where((doc) => doc['estado'] == 'SALIDO').toList();
+    } else {
+      list = List.from(_fullList);
     }
-    if (_filter == 'Salidas') {
-      return _fullList.where((doc) => doc['estado'] == 'SALIDO').toList();
+
+    // Ordenamiento por Ticket (solo cuando no es "Todos")
+    if (_filter != 'Todos') {
+      list.sort((a, b) {
+        // Asumiendo que el ticket es un string que puede contener números
+        String ticketA = a['ticket'].toString();
+        String ticketB = b['ticket'].toString();
+        
+        // Intentar ordenar numéricamente si es posible
+        int? numA = int.tryParse(ticketA);
+        int? numB = int.tryParse(ticketB);
+        
+        if (numA != null && numB != null) {
+          return _sortAscending ? numA.compareTo(numB) : numB.compareTo(numA);
+        }
+        
+        return _sortAscending 
+            ? ticketA.compareTo(ticketB) 
+            : ticketB.compareTo(ticketA);
+      });
+    } else {
+        // Ordenamiento por defecto por fecha para "Todos"
+        list.sort((a, b) {
+            Timestamp tsA = a['fecha_entrada'] ?? a['entrada'];
+            Timestamp tsB = b['fecha_entrada'] ?? b['entrada'];
+            return tsB.compareTo(tsA);
+        });
     }
-    return _fullList;
+
+    return list;
   }
 
   @override
   Widget build(BuildContext context) {
-    final activeList = _filteredList
+    // Para la vista "Todos", separamos manualmente después del filtro
+    // pero _filteredList ya viene con la lógica de "Todos" que devuelve _fullList sin ordenar por ticket
+    // Espera, si es "Todos", _filteredList devuelve _fullList ordenado por fecha.
+    // La separación se hace abajo.
+    
+    // Si estamos en "Todos", usamos las listas separadas
+    final activeList = _fullList
         .where((doc) => doc['estado'] == 'ADENTRO')
-        .toList();
-    final completedList = _filteredList
+        .toList(); // Orden por defecto (fecha)
+    
+    // Ordenar activeList por fecha (mas reciente primero)
+    activeList.sort((a, b) {
+        Timestamp tsA = a['fecha_entrada'] ?? a['entrada'];
+        Timestamp tsB = b['fecha_entrada'] ?? b['entrada'];
+        return tsB.compareTo(tsA);
+    });
+
+    final completedList = _fullList
         .where((doc) => doc['estado'] == 'SALIDO')
-        .toList();
+        .toList(); // Orden por defecto (fecha)
+
+     completedList.sort((a, b) {
+        Timestamp tsA = a['fecha_entrada'] ?? a['entrada'];
+        Timestamp tsB = b['fecha_entrada'] ?? b['entrada'];
+        return tsB.compareTo(tsA);
+    });
+
+
     final showSeparated = _filter == 'Todos';
+    final currentList = _filteredList; // Esta lista ya viene ordenada si no es "Todos"
 
     return Scaffold(
       backgroundColor: AppColors.backgroundDark,
@@ -122,8 +199,41 @@ class _ListScreenState extends State<ListScreen> {
                             Expanded(
                               child: StatCard(
                                 title: 'Vehículos\nHoy',
-                                value: '$_totalVehicles',
-                                percent: '+12%',
+                                customValue: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(
+                                      Icons.directions_car_filled,
+                                      color: Colors.white,
+                                      size: 18,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      '$_totalCars',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    const Icon(
+                                      Icons.two_wheeler,
+                                      color: Colors.white,
+                                      size: 18,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      '$_totalMotos',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                percent: 'Total: $_totalVehicles', 
                                 icon: Icons.directions_car,
                               ),
                             ),
@@ -140,12 +250,35 @@ class _ListScreenState extends State<ListScreen> {
                         ),
                         const SizedBox(height: 24),
 
-                        // Filtros
+                        // Filtros y botón de ordenar
                         FilterChips(
                           selectedFilter: _filter,
                           onFilterChanged: (filter) {
                             setState(() => _filter = filter);
                           },
+                          countInParking: _countInParking,
+                          countExits: _countExits,
+                          trailing: _filter != 'Todos'
+                              ? IconButton(
+                                  onPressed: () {
+                                    setState(() {
+                                      _sortAscending = !_sortAscending;
+                                    });
+                                  },
+                                  style: IconButton.styleFrom(
+                                    backgroundColor: AppColors.surfaceLight,
+                                    padding: const EdgeInsets.all(8),
+                                  ),
+                                  icon: Icon(
+                                    _sortAscending 
+                                        ? Icons.arrow_upward 
+                                        : Icons.arrow_downward,
+                                    color: AppColors.primary,
+                                    size: 20,
+                                  ),
+                                  tooltip: 'Ordenar por Ticket',
+                                )
+                              : null,
                         ),
                         const SizedBox(height: 24),
 
@@ -187,11 +320,23 @@ class _ListScreenState extends State<ListScreen> {
                             ),
                           ],
                         ] else ...[
-                          ..._filteredList.map((doc) {
-                            return doc['estado'] == 'ADENTRO'
-                                ? ActiveVehicleItem(doc: doc)
-                                : CompletedVehicleItem(doc: doc);
-                          }),
+                          // Lista filtrada y ordenada por ticket
+                          if (currentList.isEmpty)
+                             const Padding(
+                               padding: EdgeInsets.only(top: 40),
+                               child: Center(
+                                 child: Text(
+                                   'No hay vehículos en esta sección',
+                                   style: TextStyle(color: Colors.white38),
+                                 ),
+                               ),
+                             )
+                          else
+                            ...currentList.map((doc) {
+                              return doc['estado'] == 'ADENTRO'
+                                  ? ActiveVehicleItem(doc: doc)
+                                  : CompletedVehicleItem(doc: doc);
+                            }),
                         ],
                         const SizedBox(height: 80),
                       ],
