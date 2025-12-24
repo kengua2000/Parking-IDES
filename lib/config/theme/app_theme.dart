@@ -32,11 +32,11 @@ class AppTheme {
                 child: Column(
                   children: [
                     // Título del diálogo
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(20, 20, 20, 10),
                       child: Text(
                         'Hora Manual',
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: Colors.white,
                           fontSize: 22,
                           fontWeight: FontWeight.bold,

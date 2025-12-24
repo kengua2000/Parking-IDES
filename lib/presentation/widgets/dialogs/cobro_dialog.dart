@@ -5,7 +5,7 @@ import '../../../core/utils/currency_formatter.dart';
 /// Diálogo de confirmación de cobro con cálculo de cambio
 class CobroDialog extends StatefulWidget {
   final String ticket;
-  final String tipo; // Añadido para mostrar si es Carro/Moto
+  final String tipo;
   final int totalAPagar;
   final String tiempoTotal;
   final VoidCallback onCobrar;
@@ -13,7 +13,7 @@ class CobroDialog extends StatefulWidget {
   const CobroDialog({
     super.key,
     required this.ticket,
-    this.tipo = 'Vehículo', // Valor por defecto para compatibilidad
+    this.tipo = 'Vehículo',
     required this.totalAPagar,
     required this.tiempoTotal,
     required this.onCobrar,
@@ -26,12 +26,12 @@ class CobroDialog extends StatefulWidget {
 class _CobroDialogState extends State<CobroDialog> {
   int _pagoCon = 0;
   int _devuelta = 0;
+  bool _isProcessing = false; // NUEVO: Para evitar múltiples toques
 
   @override
   void initState() {
     super.initState();
     _pagoCon = 0;
-    // Asegurar que el teclado se cierre al abrir el diálogo
     WidgetsBinding.instance.addPostFrameCallback((_) {
       FocusScope.of(context).unfocus();
     });
@@ -44,7 +44,6 @@ class _CobroDialogState extends State<CobroDialog> {
     });
   }
 
-  /// Obtiene las opciones de pago según el total a pagar
   List<int> _getOpcionesPago(int total) {
     switch (total) {
       case 2000:
@@ -69,17 +68,41 @@ class _CobroDialogState extends State<CobroDialog> {
     }
   }
 
+  // NUEVO: Método seguro para manejar el cobro
+  Future<void> _handleCobrar() async {
+    if (_isProcessing) return; // Evitar múltiples toques
+
+    setState(() {
+      _isProcessing = true;
+    });
+
+    try {
+      // Cerrar el diálogo PRIMERO
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+
+      // Luego ejecutar el callback
+      widget.onCobrar();
+    } catch (e) {
+      debugPrint('Error en cobro: $e');
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final pagoSuficiente = _pagoCon >= widget.totalAPagar;
-    
-    // Obtenemos la lista específica de billetes para este monto
     final billetes = _getOpcionesPago(widget.totalAPagar);
 
-    return Dialog( 
+    return Dialog(
       backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24), // Añadido padding para evitar bordes
-      child: ConstrainedBox( 
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 400),
         child: Container(
           decoration: BoxDecoration(
@@ -90,11 +113,11 @@ class _CobroDialogState extends State<CobroDialog> {
               width: 1,
             ),
           ),
-          padding: const EdgeInsets.all(24), 
+          padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Título manual
+              // Título
               const Column(
                 children: [
                   Text(
@@ -110,8 +133,8 @@ class _CobroDialogState extends State<CobroDialog> {
                 ],
               ),
               const SizedBox(height: 16),
-              
-              // Contenido Flexible con Scroll
+
+              // Contenido con Scroll
               Flexible(
                 child: SingleChildScrollView(
                   child: Column(
@@ -134,7 +157,7 @@ class _CobroDialogState extends State<CobroDialog> {
                         ),
                       ),
                       const SizedBox(height: 16),
-        
+
                       // Total a Pagar
                       const Text(
                         'Total a Pagar:',
@@ -164,7 +187,7 @@ class _CobroDialogState extends State<CobroDialog> {
                       ),
 
                       const SizedBox(height: 20),
-        
+
                       const Divider(color: AppColors.surfaceBorder),
                       const Text(
                         'Selecciona con cuánto paga:',
@@ -174,12 +197,12 @@ class _CobroDialogState extends State<CobroDialog> {
                         ),
                       ),
                       const SizedBox(height: 10),
-        
+
                       // Botón Pago Exacto
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
-                          onPressed: () => _calcularDevuelta(widget.totalAPagar),
+                          onPressed: _isProcessing ? null : () => _calcularDevuelta(widget.totalAPagar),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.surfaceLight,
                             foregroundColor: AppColors.primary,
@@ -200,7 +223,7 @@ class _CobroDialogState extends State<CobroDialog> {
                         ),
                       ),
                       const SizedBox(height: 10),
-        
+
                       // Botones de billetes
                       Wrap(
                         spacing: 8,
@@ -211,7 +234,7 @@ class _CobroDialogState extends State<CobroDialog> {
                             .toList(),
                       ),
                       const SizedBox(height: 20),
-        
+
                       // Devuelta (Cambio)
                       const Text(
                         'Devuelta (Cambio):',
@@ -226,8 +249,8 @@ class _CobroDialogState extends State<CobroDialog> {
                           color: _devuelta >= 0
                               ? AppColors.redExit
                               : AppColors.redExit,
-                              fontSize: 28,
-                              fontWeight: FontWeight.bold,
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     ],
@@ -236,12 +259,12 @@ class _CobroDialogState extends State<CobroDialog> {
               ),
               const SizedBox(height: 24),
 
-              // Botones de acción manuales
+              // Botones de acción
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
                   TextButton(
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: _isProcessing ? null : () => Navigator.pop(context),
                     child: const Text(
                       'Cancelar',
                       style: TextStyle(color: Colors.white38),
@@ -249,10 +272,11 @@ class _CobroDialogState extends State<CobroDialog> {
                   ),
                   const SizedBox(width: 8),
                   ElevatedButton(
-                    onPressed: pagoSuficiente ? widget.onCobrar : null,
+                    // CAMBIO PRINCIPAL: Usar el nuevo método
+                    onPressed: (pagoSuficiente && !_isProcessing) ? _handleCobrar : null,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primary,
-                      disabledBackgroundColor: AppColors.surfaceLight.withValues(alpha:0.5),
+                      disabledBackgroundColor: AppColors.surfaceLight.withValues(alpha: 0.5),
                       padding: const EdgeInsets.symmetric(
                         horizontal: 20,
                         vertical: 12,
@@ -261,7 +285,16 @@ class _CobroDialogState extends State<CobroDialog> {
                         borderRadius: BorderRadius.circular(50),
                       ),
                     ),
-                    child: Text(
+                    child: _isProcessing
+                        ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppColors.backgroundDark,
+                      ),
+                    )
+                        : Text(
                       'COBRAR Y SALIR',
                       style: TextStyle(
                         color: pagoSuficiente
@@ -280,12 +313,11 @@ class _CobroDialogState extends State<CobroDialog> {
     );
   }
 
-  /// Botón de billete individual
   Widget _buildBillButton(int valor) {
     final isSelected = _pagoCon == valor;
 
     return GestureDetector(
-      onTap: () => _calcularDevuelta(valor),
+      onTap: _isProcessing ? null : () => _calcularDevuelta(valor),
       child: Container(
         padding: const EdgeInsets.symmetric(
           horizontal: 16,

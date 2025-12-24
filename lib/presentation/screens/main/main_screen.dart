@@ -1,21 +1,21 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
 import '../../../config/theme/app_theme.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../core/utils/date_formatter.dart';
-import '../../../core/utils/currency_formatter.dart';
-import '../../../data/services/firestore_service.dart';
-import '../../widgets/common/circle_icon_button.dart';
 import '../../widgets/dialogs/cobro_dialog.dart';
 import '../../widgets/dialogs/summary_dialog.dart';
 import '../list/list_screen.dart';
+import 'main_viewmodel.dart';
 import 'widgets/main_header.dart';
 import 'widgets/vehicle_type_selector.dart';
 import 'widgets/ticket_input_section.dart';
 import 'widgets/activity_feedback_card.dart';
 import 'widgets/recent_activity_item.dart';
+import 'widgets/action_buttons.dart';
+import 'widgets/top_bar.dart';
 
-/// Pantalla principal del dashboard
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
 
@@ -24,169 +24,84 @@ class MainScreen extends StatefulWidget {
 }
 
 class _MainScreenState extends State<MainScreen> {
-  // Controladores
   final TextEditingController _ticketController = TextEditingController();
   final TextEditingController _manualTimeController = TextEditingController();
+  late final MainViewModel _viewModel;
 
-  // Estado
-  String _vehicleType = 'Carro';
-  String _lastActionText = '';
-  bool _isErrorState = false;
-
-  // Servicios
-  final FirestoreService _firestoreService = FirestoreService();
+  @override
+  void initState() {
+    super.initState();
+    _viewModel = MainViewModel();
+  }
 
   @override
   void dispose() {
     _ticketController.dispose();
     _manualTimeController.dispose();
+    _viewModel.dispose();
     super.dispose();
   }
 
-  /// Muestra selector de hora estilo Cupertino (Wheel)
   Future<void> _selectTime() async {
     final picked = await AppTheme.showCupertinoTimePicker(
       context: context,
       initialTime: TimeOfDay.now(),
     );
 
-    if (picked != null) {
+    if (picked != null && mounted) {
       final now = DateTime.now();
       final dt = DateTime(now.year, now.month, now.day, picked.hour, picked.minute);
       setState(() => _manualTimeController.text = DateFormatter.formatTime(dt));
     }
   }
 
-  /// Registra entrada de vehículo
-  void _registerEntry() async {
-    final ticket = _ticketController.text.trim();
-
-    if (ticket.isEmpty) {
-      _showErrorInCard('Escribe el ticket');
-      return;
-    }
-
+  void _handleEntry() async {
     FocusScope.of(context).unfocus();
 
-    // Determinar fecha/hora de entrada
-    DateTime entryDate = DateTime.now();
-    if (_manualTimeController.text.isNotEmpty) {
-      try {
-        entryDate = DateFormatter.parseTime(
-          _manualTimeController.text,
-          DateTime.now(),
-        );
-      } catch (e) {
-        _showErrorInCard('Formato de hora incorrecto');
-        return;
-      }
-    }
+    await _viewModel.registerEntry(
+      ticket: _ticketController.text.trim(),
+      manualTime: _manualTimeController.text.isEmpty ? null : _manualTimeController.text,
+    );
 
-    // Verificar si ya está adentro
-    final isInside = await _firestoreService.isVehicleInside(ticket);
-    if (isInside) {
-      _showErrorInCard('El vehículo $ticket ya está ADENTRO');
-      return;
-    }
-
-    // Registrar entrada
-    try {
-      await _firestoreService.registerEntry(
-        ticket: ticket,
-        tipo: _vehicleType,
-        fechaEntrada: entryDate,
-        dia: DateFormatter.formatDay(entryDate),
-      );
-
+    if (!_viewModel.isErrorState) {
       _ticketController.clear();
       _manualTimeController.clear();
-      
-      setState(() {
-        _isErrorState = false;
-        _lastActionText = 'Entrada registrada para Ticket #$ticket - '
-            '${DateFormatter.formatDisplayTime(entryDate)}';
-      });
-    } catch (e) {
-      _showErrorInCard('Error al registrar entrada: $e');
     }
   }
 
-  /// Procesa salida con modal de cobro
-  void _processExit() async {
-    final ticket = _ticketController.text.trim();
-
-    if (ticket.isEmpty) {
-      _showErrorInCard('Escribe el ticket');
-      return;
-    }
-
+  void _handleExit() async {
     FocusScope.of(context).unfocus();
 
-    try {
-      // Buscar vehículo
-      final doc = await _firestoreService.findActiveVehicle(ticket);
+    final exitData = await _viewModel.processExit(
+      ticket: _ticketController.text.trim(),
+      manualTime: _manualTimeController.text.isEmpty ? null : _manualTimeController.text,
+    );
 
-      if (doc == null) {
-        _showErrorInCard('Ticket no encontrado o ya salió');
-        return;
-      }
-
-      // Extraer datos
-      final data = doc.data() as Map<String, dynamic>;
-      final Timestamp entryTimestamp = data['fecha_entrada'] ?? data['entrada'];
-      final DateTime entryDate = entryTimestamp.toDate();
-
-      // Determinar fecha/hora de salida
-      DateTime exitDate = DateTime.now();
-      if (_manualTimeController.text.isNotEmpty) {
-        try {
-          exitDate = DateFormatter.parseTime(
-            _manualTimeController.text,
-            DateTime.now(),
-          );
-        } catch (e) {
-          // Si falla, usar fecha actual
-        }
-      }
-
-      // Calcular tiempo y costo
-      int minutes = exitDate.difference(entryDate).inMinutes;
-      if (minutes < 0) minutes = 0;
-
-      final tipo = data['tipo'] ?? _vehicleType;
-      final costo = FirestoreService.calculateCost(
-        tipo: tipo,
-        minutes: minutes,
-      );
-
-      // Mostrar diálogo de cobro
-      _showChargeDialog(
-        docId: doc.id,
-        ticket: ticket,
-        tipo: tipo,
-        entryDate: entryDate,
-        exitDate: exitDate,
-        total: costo,
-        totalMinutes: minutes,
-      );
-    } catch (e) {
-      _showErrorInCard('Error: $e');
+    if (exitData != null && mounted) {
+      _showChargeDialog(exitData);
     }
   }
 
-  /// Elimina un registro de vehículo (corrección de errores)
-  void _deleteRecord() async {
+  void _handleDelete() async {
     final ticket = _ticketController.text.trim();
 
-    if (ticket.isEmpty) {
-      _showErrorInCard('Escribe el ticket para borrar');
-      return;
-    }
+    if (ticket.isEmpty) return;
 
     FocusScope.of(context).unfocus();
 
-    // Confirmación
-    final confirm = await showDialog<bool>(
+    final confirm = await _showDeleteConfirmation(ticket);
+    if (confirm != true || !mounted) return;
+
+    await _viewModel.deleteRecord(ticket);
+
+    if (!_viewModel.isErrorState) {
+      _ticketController.clear();
+      _manualTimeController.clear();
+    }
+  }
+
+  Future<bool?> _showDeleteConfirmation(String ticket) {
+    return showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.surfaceDark,
@@ -207,36 +122,11 @@ class _MainScreenState extends State<MainScreen> {
         ],
       ),
     );
-
-    if (confirm != true) return;
-
-    try {
-      await _firestoreService.deleteActiveVehicle(ticket);
-      
-      _ticketController.clear();
-      _manualTimeController.clear();
-      
-      setState(() {
-        _isErrorState = false;
-        _lastActionText = 'Registro eliminado para Ticket #$ticket';
-      });
-    } catch (e) {
-      _showErrorInCard('Error al eliminar: $e');
-    }
   }
 
-  /// Muestra diálogo de cobro
-  void _showChargeDialog({
-    required String docId,
-    required String ticket,
-    required String tipo,
-    required DateTime entryDate,
-    required DateTime exitDate,
-    required int total,
-    required int totalMinutes,
-  }) {
+  void _showChargeDialog(ExitData exitData) {
     final timeFormat = DateFormatter.formatDuration(
-      Duration(minutes: totalMinutes),
+      Duration(minutes: exitData.totalMinutes),
     );
 
     showDialog(
@@ -244,58 +134,45 @@ class _MainScreenState extends State<MainScreen> {
       barrierDismissible: false,
       builder: (dialogContext) {
         return CobroDialog(
-          ticket: ticket,
-          tipo: tipo,
-          totalAPagar: total,
+          ticket: exitData.ticket,
+          tipo: exitData.tipo,
+          totalAPagar: exitData.total,
           tiempoTotal: timeFormat,
           onCobrar: () async {
-            final navigator = Navigator.of(dialogContext);
+            await _viewModel.confirmExit(exitData);
 
-            await _firestoreService.registerExit(
-              docId: docId,
-              fechaSalida: exitDate,
-              costo: total,
-              minutos: totalMinutes,
-            );
-
-            if (!mounted) return;
-
-            navigator.pop();
-            _ticketController.clear();
-            _manualTimeController.clear();
-
-            setState(() {
-              _isErrorState = false;
-              _lastActionText = 'Salida Ticket #$ticket - '
-                  'Cobrado: ${CurrencyFormatter.format(total)}';
-            });
+            if (!_viewModel.isErrorState) {
+              _ticketController.clear();
+              _manualTimeController.clear();
+            }
           },
         );
       },
     );
   }
 
-  /// Muestra error directamente en la tarjeta de feedback
-  void _showErrorInCard(String message) {
-    setState(() {
-      _isErrorState = true;
-      _lastActionText = message;
-    });
+  void _navigateToList() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ListScreen()),
+    );
+  }
+
+  void _showSummary() {
+    showDialog(
+      context: context,
+      builder: (context) => const SummaryDialog(),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final hasManualTime = _manualTimeController.text.isNotEmpty;
-
-    return Scaffold(
+    return ChangeNotifierProvider.value(
+      value: _viewModel,
+      child: Scaffold(
         backgroundColor: AppColors.backgroundDark,
         floatingActionButton: FloatingActionButton(
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const ListScreen()),
-            );
-          },
+          onPressed: _navigateToList,
           backgroundColor: AppColors.primary,
           child: const Icon(
             Icons.visibility,
@@ -304,194 +181,108 @@ class _MainScreenState extends State<MainScreen> {
           ),
         ),
         body: SafeArea(
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 480), // Ya estaba ajustado aquí
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 480),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Top Bar
-                    _buildTopBar(),
+                    TopBar(onSummaryPressed: _showSummary),
                     const SizedBox(height: 24),
-
-                    // Header
                     const MainHeader(),
                     const SizedBox(height: 24),
-
-                    // Selector de tipo de vehículo
-                    VehicleTypeSelector(
-                      selectedType: _vehicleType,
-                      onTypeChanged: (type) => setState(() => _vehicleType = type),
-                    ),
+                    _buildVehicleTypeSelector(),
                     const SizedBox(height: 24),
-
-                    // Input de ticket
-                    TicketInputSection(
-                      ticketController: _ticketController,
-                      manualTimeController: _manualTimeController,
-                      hasManualTime: hasManualTime,
-                      onSelectTime: _selectTime,
-                      onClearManualTime: () {
-                        setState(() => _manualTimeController.clear());
-                      },
-                    ),
+                    _buildTicketInput(),
                     const SizedBox(height: 24),
-
-                    // Botones de acción
-                    _buildActionButtons(),
-                    const SizedBox(height: 16),
-                    
-                    // Botón de eliminar (NUEVO)
-                    Center(
-                      child: TextButton.icon(
-                        onPressed: _deleteRecord,
-                        icon: const Icon(Icons.delete_outline, size: 18, color: Colors.white38),
-                        label: const Text(
-                          'Eliminar registro',
-                          style: TextStyle(color: Colors.white38, fontSize: 12),
-                        ),
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                        ),
-                      ),
+                    ActionButtons(
+                      onEntryPressed: _handleEntry,
+                      onExitPressed: _handleExit,
                     ),
                     const SizedBox(height: 16),
-
-                    // Feedback de última acción (o error)
-                    if (_lastActionText.isNotEmpty)
-                      ActivityFeedbackCard(
-                        message: _lastActionText,
-                        isError: _isErrorState,
-                      ),
-
-                    if (_lastActionText.isNotEmpty)
-                      const SizedBox(height: 24),
-
-                    // Lista de actividad reciente
-                    _buildRecentActivitySection(),
+                    _buildDeleteButton(),
+                    const SizedBox(height: 16),
+                    _buildFeedback(),
+                    _buildRecentActivity(),
                     const SizedBox(height: 40),
                   ],
                 ),
               ),
-              ),
             ),
-        ),
-      );
-  }
-
-  /// Top bar con iconos de menú y configuración
-  Widget _buildTopBar() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        CircleIconButton(
-            icon: Icons.insert_chart, 
-            onPressed: () {
-              showDialog(
-                context: context,
-                builder: (context) => const SummaryDialog(),
-              );
-            }
-        ),
-        const Text(
-          'Parqueadero IDES',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
           ),
-        ),
-        const SizedBox(width: 40),
-      ],
-    );
-  }
-
-  /// Botones de entrada y salida
-  Widget _buildActionButtons() {
-    return Row(
-      children: [
-        Expanded(
-          child: _buildActionButton(
-            label: 'ENTRADA',
-            icon: Icons.arrow_downward,
-            backgroundColor: AppColors.primary,
-            textColor: AppColors.backgroundDark,
-            onPressed: _registerEntry,
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _buildActionButton(
-            label: 'SALIDA',
-            icon: Icons.arrow_upward,
-            backgroundColor: AppColors.redExit,
-            textColor: AppColors.backgroundDark,
-            onPressed: _processExit,
-          ),
-        ),
-      ],
-    );
-  }
-
-  /// Botón de acción vertical
-  Widget _buildActionButton({
-    required String label,
-    required IconData icon,
-    required Color backgroundColor,
-    required Color textColor,
-    required VoidCallback onPressed,
-  }) {
-    return GestureDetector(
-      onTap: onPressed,
-      child: Container(
-        height: 96,
-        decoration: BoxDecoration(
-          color: backgroundColor,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: backgroundColor.withValues(alpha:0.3),
-              blurRadius: 15,
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: label == 'ENTRADA'
-                    ? AppColors.backgroundDark.withValues(alpha:0.1)
-                    : Colors.white.withValues(alpha:0.2),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: textColor, size: 24),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              style: TextStyle(
-                color: textColor,
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-                letterSpacing: 0.5,
-              ),
-            ),
-          ],
         ),
       ),
     );
   }
 
-  /// Sección de actividad reciente
-  Widget _buildRecentActivitySection() {
+  Widget _buildVehicleTypeSelector() {
+    return Consumer<MainViewModel>(
+      builder: (context, viewModel, _) {
+        return VehicleTypeSelector(
+          selectedType: viewModel.vehicleType,
+          onTypeChanged: viewModel.setVehicleType,
+        );
+      },
+    );
+  }
+
+  Widget _buildTicketInput() {
+    final hasManualTime = _manualTimeController.text.isNotEmpty;
+
+    return TicketInputSection(
+      ticketController: _ticketController,
+      manualTimeController: _manualTimeController,
+      hasManualTime: hasManualTime,
+      onSelectTime: _selectTime,
+      onClearManualTime: () {
+        setState(() => _manualTimeController.clear());
+      },
+    );
+  }
+
+  Widget _buildDeleteButton() {
+    return Center(
+      child: TextButton.icon(
+        onPressed: _handleDelete,
+        icon: const Icon(Icons.delete_outline, size: 18, color: Colors.white38),
+        label: const Text(
+          'Eliminar registro',
+          style: TextStyle(color: Colors.white38, fontSize: 12),
+        ),
+        style: TextButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFeedback() {
+    return Consumer<MainViewModel>(
+      builder: (context, viewModel, _) {
+        if (viewModel.lastActionText.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        return Column(
+          children: [
+            ActivityFeedbackCard(
+              message: viewModel.lastActionText,
+              isError: viewModel.isErrorState,
+            ),
+            const SizedBox(height: 24),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildRecentActivity() {
     return Column(
       children: [
-        const Row( 
+        const Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
@@ -505,8 +296,6 @@ class _MainScreenState extends State<MainScreen> {
           ],
         ),
         const SizedBox(height: 12),
-
-        // Stream de vehículos recientes
         StreamBuilder<QuerySnapshot>(
           stream: FirebaseFirestore.instance
               .collection('vehiculos')
@@ -514,6 +303,15 @@ class _MainScreenState extends State<MainScreen> {
               .limit(3)
               .snapshots(),
           builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return Center(
+                child: Text(
+                  'Error al cargar actividad',
+                  style: TextStyle(color: Colors.red[300]),
+                ),
+              );
+            }
+
             if (!snapshot.hasData) {
               return const Center(
                 child: CircularProgressIndicator(color: AppColors.primary),
@@ -522,9 +320,7 @@ class _MainScreenState extends State<MainScreen> {
 
             final docs = snapshot.data!.docs;
             return Column(
-              children: docs
-                  .map((doc) => RecentActivityItem(doc: doc))
-                  .toList(),
+              children: docs.map((doc) => RecentActivityItem(doc: doc)).toList(),
             );
           },
         ),
