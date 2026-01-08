@@ -18,8 +18,11 @@ class ListScreen extends StatefulWidget {
 
 class _ListScreenState extends State<ListScreen> {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
 
   String _filter = 'Todos';
+  String _searchQuery = '';
   List<QueryDocumentSnapshot> _fullList = [];
   bool _isLoading = true;
   int _totalVehicles = 0;
@@ -30,10 +33,26 @@ class _ListScreenState extends State<ListScreen> {
   int _countExits = 0;
   bool _sortAscending = false;
 
+
   @override
   void initState() {
     super.initState();
     _loadData();
+    _searchController.addListener(_onSearchChanged);
+  }
+
+  @override
+  void dispose() {
+    _searchController.removeListener(_onSearchChanged);
+    _searchController.dispose();
+    _searchFocusNode.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged() {
+    setState(() {
+      _searchQuery = _searchController.text.trim();
+    });
   }
 
   void _loadData() {
@@ -73,7 +92,6 @@ class _ListScreenState extends State<ListScreen> {
                   inParking++;
                 } else if (estado == 'SALIDO') {
                   exits++;
-                  // Protección contra valores null o tipo incorrecto
                   final costoValue = data['costo'];
                   if (costoValue != null) {
                     income += (costoValue is int) ? costoValue : (costoValue as num).toInt();
@@ -128,6 +146,7 @@ class _ListScreenState extends State<ListScreen> {
     List<QueryDocumentSnapshot> list = [];
 
     try {
+      // Primero aplicar el filtro de estado
       if (_filter == 'En Parqueadero') {
         list = _fullList.where((doc) {
           final data = doc.data() as Map<String, dynamic>?;
@@ -142,6 +161,16 @@ class _ListScreenState extends State<ListScreen> {
         list = List.from(_fullList);
       }
 
+      // Aplicar búsqueda por ticket si hay query
+      if (_searchQuery.isNotEmpty) {
+        list = list.where((doc) {
+          final data = doc.data() as Map<String, dynamic>?;
+          final ticket = data?['ticket']?.toString() ?? '';
+          return ticket.toLowerCase().contains(_searchQuery.toLowerCase());
+        }).toList();
+      }
+
+      // Ordenar
       if (_filter != 'Todos') {
         list.sort((a, b) {
           try {
@@ -195,7 +224,14 @@ class _ListScreenState extends State<ListScreen> {
     final activeList = _fullList.where((doc) {
       try {
         final data = doc.data() as Map<String, dynamic>?;
-        return data != null && (data['estado'] ?? 'ADENTRO') == 'ADENTRO';
+        if (data == null || (data['estado'] ?? 'ADENTRO') != 'ADENTRO') return false;
+
+        // Aplicar búsqueda
+        if (_searchQuery.isNotEmpty) {
+          final ticket = data['ticket']?.toString() ?? '';
+          return ticket.toLowerCase().contains(_searchQuery.toLowerCase());
+        }
+        return true;
       } catch (e) {
         debugPrint('Error filtrando activos: $e');
         return false;
@@ -220,7 +256,14 @@ class _ListScreenState extends State<ListScreen> {
     final completedList = _fullList.where((doc) {
       try {
         final data = doc.data() as Map<String, dynamic>?;
-        return data != null && (data['estado'] ?? '') == 'SALIDO';
+        if (data == null || (data['estado'] ?? '') != 'SALIDO') return false;
+
+        // Aplicar búsqueda
+        if (_searchQuery.isNotEmpty) {
+          final ticket = data['ticket']?.toString() ?? '';
+          return ticket.toLowerCase().contains(_searchQuery.toLowerCase());
+        }
+        return true;
       } catch (e) {
         return false;
       }
@@ -253,6 +296,7 @@ class _ListScreenState extends State<ListScreen> {
             child: Column(
               children: [
                 _buildHeader(),
+                _buildSearchBar(),
                 Expanded(
                   child: _isLoading
                       ? const Center(
@@ -265,92 +309,107 @@ class _ListScreenState extends State<ListScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: StatCard(
-                                title: 'Vehículos\nHoy',
-                                customValue: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(
-                                      Icons.directions_car_filled,
-                                      color: Colors.white,
-                                      size: 18,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      '$_totalCars',
-                                      style: const TextStyle(
+                        if (_searchQuery.isEmpty) ...[
+                          Row(
+                            children: [
+                              Expanded(
+                                child: StatCard(
+                                  title: 'Vehículos\nHoy',
+                                  customValue: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(
+                                        Icons.directions_car_filled,
                                         color: Colors.white,
-                                        fontSize: 20,
-                                        fontWeight: FontWeight.bold,
+                                        size: 18,
                                       ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    const Icon(
-                                      Icons.two_wheeler,
-                                      color: Colors.white,
-                                      size: 18,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      '$_totalMotos',
-                                      style: const TextStyle(
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        '$_totalCars',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      const Icon(
+                                        Icons.two_wheeler,
                                         color: Colors.white,
-                                        fontSize: 20,
-                                        fontWeight: FontWeight.bold,
+                                        size: 18,
                                       ),
-                                    ),
-                                  ],
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        '$_totalMotos',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  percent: 'Total: $_totalVehicles',
+                                  icon: Icons.directions_car,
                                 ),
-                                percent: 'Total: $_totalVehicles',
-                                icon: Icons.directions_car,
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: StatCard(
+                                  title: 'Ingresos',
+                                  value: CurrencyFormatter.format(_totalIncome),
+                                  percent: '+5%',
+                                  icon: Icons.payments,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 24),
+                        ],
+                        if (_searchQuery.isNotEmpty) ...[
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 16),
+                            child: Text(
+                              'Resultados: ${currentList.length}',
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 14,
                               ),
                             ),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: StatCard(
-                                title: 'Ingresos',
-                                value: CurrencyFormatter.format(_totalIncome),
-                                percent: '+5%',
-                                icon: Icons.payments,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 24),
-                        FilterChips(
-                          selectedFilter: _filter,
-                          onFilterChanged: (filter) {
-                            setState(() => _filter = filter);
-                          },
-                          countInParking: _countInParking,
-                          countExits: _countExits,
-                          trailing: _filter != 'Todos'
-                              ? IconButton(
-                            onPressed: () {
-                              setState(() {
-                                _sortAscending = !_sortAscending;
-                              });
+                          ),
+                        ],
+                        if (_searchQuery.isEmpty)
+                          FilterChips(
+                            selectedFilter: _filter,
+                            onFilterChanged: (filter) {
+                              setState(() => _filter = filter);
                             },
-                            style: IconButton.styleFrom(
-                              backgroundColor: AppColors.surfaceLight,
-                              padding: const EdgeInsets.all(8),
-                            ),
-                            icon: Icon(
-                              _sortAscending
-                                  ? Icons.arrow_upward
-                                  : Icons.arrow_downward,
-                              color: AppColors.primary,
-                              size: 20,
-                            ),
-                            tooltip: 'Ordenar por Ticket',
-                          )
-                              : null,
-                        ),
+                            countInParking: _countInParking,
+                            countExits: _countExits,
+                            trailing: _filter != 'Todos'
+                                ? IconButton(
+                              onPressed: () {
+                                setState(() {
+                                  _sortAscending = !_sortAscending;
+                                });
+                              },
+                              style: IconButton.styleFrom(
+                                backgroundColor: AppColors.surfaceLight,
+                                padding: const EdgeInsets.all(8),
+                              ),
+                              icon: Icon(
+                                _sortAscending
+                                    ? Icons.arrow_upward
+                                    : Icons.arrow_downward,
+                                color: AppColors.primary,
+                                size: 20,
+                              ),
+                              tooltip: 'Ordenar por Ticket',
+                            )
+                                : null,
+                          ),
                         const SizedBox(height: 24),
-                        if (showSeparated) ...[
+                        if (showSeparated && _searchQuery.isEmpty) ...[
                           if (activeList.isNotEmpty) ...[
                             const Padding(
                               padding: EdgeInsets.only(left: 4, bottom: 8),
@@ -386,14 +445,62 @@ class _ListScreenState extends State<ListScreen> {
                                   (doc) => CompletedVehicleItem(doc: doc),
                             ),
                           ],
-                        ] else ...[
-                          if (currentList.isEmpty)
+                        ] else if (_searchQuery.isNotEmpty && showSeparated) ...[
+                          if (activeList.isNotEmpty) ...[
+                            const Padding(
+                              padding: EdgeInsets.only(left: 4, bottom: 8),
+                              child: Text(
+                                'EN CURSO',
+                                style: TextStyle(
+                                  color: Colors.white54,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1,
+                                ),
+                              ),
+                            ),
+                            ...activeList.map(
+                                  (doc) => ActiveVehicleItem(doc: doc),
+                            ),
+                            const SizedBox(height: 16),
+                          ],
+                          if (completedList.isNotEmpty) ...[
+                            const Padding(
+                              padding: EdgeInsets.only(left: 4, bottom: 8),
+                              child: Text(
+                                'FINALIZADOS',
+                                style: TextStyle(
+                                  color: Colors.white54,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1,
+                                ),
+                              ),
+                            ),
+                            ...completedList.map(
+                                  (doc) => CompletedVehicleItem(doc: doc),
+                            ),
+                          ],
+                          if (activeList.isEmpty && completedList.isEmpty)
                             const Padding(
                               padding: EdgeInsets.only(top: 40),
                               child: Center(
                                 child: Text(
-                                  'No hay vehículos en esta sección',
+                                  'No se encontraron tickets',
                                   style: TextStyle(color: Colors.white38),
+                                ),
+                              ),
+                            ),
+                        ] else ...[
+                          if (currentList.isEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 40),
+                              child: Center(
+                                child: Text(
+                                  _searchQuery.isNotEmpty
+                                      ? 'No se encontraron tickets'
+                                      : 'No hay vehículos en esta sección',
+                                  style: const TextStyle(color: Colors.white38),
                                 ),
                               ),
                             )
@@ -428,6 +535,54 @@ class _ListScreenState extends State<ListScreen> {
           Icons.add,
           color: AppColors.backgroundDark,
           size: 30,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSearchBar() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.surfaceLight,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: _searchQuery.isNotEmpty
+                ? AppColors.primary.withValues(alpha: 0.5)
+                : Colors.transparent,
+            width: 1.5,
+          ),
+        ),
+        child: TextField(
+          controller: _searchController,
+          focusNode: _searchFocusNode,
+          style: const TextStyle(color: Colors.white),
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+            hintText: 'Buscar por número de ticket...',
+            hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4)),
+            prefixIcon: Icon(
+              Icons.search,
+              color: _searchQuery.isNotEmpty
+                  ? AppColors.primary
+                  : Colors.white.withValues(alpha: 0.4),
+            ),
+            suffixIcon: _searchQuery.isNotEmpty
+                ? IconButton(
+              icon: const Icon(Icons.clear, color: Colors.white70),
+              onPressed: () {
+                _searchController.clear();
+                _searchFocusNode.unfocus();
+              },
+            )
+                : null,
+            border: InputBorder.none,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 12,
+            ),
+          ),
         ),
       ),
     );

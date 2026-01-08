@@ -109,7 +109,9 @@ class FirestoreService {
     required String tipo,
     required int minutes,
   }) {
-    final tarifa = tipo == 'Moto' ? 2000 : 3000;
+    final bool esMoto = tipo == 'Moto';
+    final tarifa = esMoto ? 2000 : 3000;
+    final topeMaximo = esMoto ? 4000 : 6000; // Tope diferenciado
 
     if (minutes <= 65) {
       return tarifa;
@@ -119,9 +121,9 @@ class FirestoreService {
     final horasAdicionales = ((minutes - 60) / 60).ceil();
     final total = tarifa + (horasAdicionales * 500);
 
-    // Tope máximo de 6000
-    if (total > 6000) {
-      return 6000;
+    // Tope máximo según tipo de vehículo
+    if (total > topeMaximo) {
+      return topeMaximo;
     }
 
     return total;

@@ -34,165 +34,169 @@ class SummaryDialog extends StatelessWidget {
               ),
               const SizedBox(height: 20),
 
-              StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection('vehiculos')
-                    .where('dia', isEqualTo: today)
-                    .where('estado', isEqualTo: 'SALIDO')
-                    .snapshots(),
-                builder: (context, snapshot) {
-                  if (snapshot.hasError) {
-                    debugPrint('Error en StreamBuilder: ${snapshot.error}');
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: Text(
-                          'Error al cargar datos',
-                          style: TextStyle(color: Colors.red[300]),
-                        ),
-                      ),
-                    );
-                  }
-
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(40),
-                        child: CircularProgressIndicator(color: AppColors.primary),
-                      ),
-                    );
-                  }
-
-                  if (!snapshot.hasData) {
-                    return const Center(
-                      child: Padding(
-                        padding: EdgeInsets.all(20),
-                        child: Text(
-                          'No hay datos disponibles',
-                          style: TextStyle(color: Colors.white54),
-                        ),
-                      ),
-                    );
-                  }
-
-                  try {
-                    final Map<int, int> counts = {};
-                    int totalIncome = 0;
-                    int totalVehicles = 0;
-
-                    for (var doc in snapshot.data!.docs) {
-                      try {
-                        final data = doc.data() as Map<String, dynamic>?;
-                        if (data == null) continue;
-
-                        final costoValue = data['costo'];
-                        if (costoValue == null) continue;
-
-                        final costo = (costoValue is int)
-                            ? costoValue
-                            : (costoValue as num).toInt();
-
-                        counts[costo] = (counts[costo] ?? 0) + 1;
-                        totalIncome += costo;
-                        totalVehicles += 1;
-                      } catch (e) {
-                        debugPrint('Error procesando documento en resumen: $e');
-                      }
-                    }
-
-                    final sortedKeys = counts.keys.toList()..sort();
-                    debugPrint('Total de vehículos: $totalVehicles, Ingresos: $totalIncome');
-
-                    return Column(
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceAround,
-                          children: [
-                            _buildStat('Total', '$totalVehicles'),
-                            _buildStat('Ingresos', CurrencyFormatter.format(totalIncome)),
-                          ],
-                        ),
-                        const Divider(color: Colors.white24, height: 32),
-
-                        if (sortedKeys.isEmpty)
-                          const Padding(
-                            padding: EdgeInsets.all(20),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: StreamBuilder<QuerySnapshot>(
+                    stream: FirebaseFirestore.instance
+                        .collection('vehiculos')
+                        .where('dia', isEqualTo: today)
+                        .where('estado', isEqualTo: 'SALIDO')
+                        .snapshots(),
+                    builder: (context, snapshot) {
+                      if (snapshot.hasError) {
+                        debugPrint('Error en StreamBuilder: ${snapshot.error}');
+                        return Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(20),
                             child: Text(
-                              'No hay salidas registradas hoy',
-                              style: TextStyle(color: Colors.white54),
-                              textAlign: TextAlign.center,
-                            ),
-                          )
-                        else
-                          Container(
-                            decoration: BoxDecoration(
-                              border: Border.all(color: Colors.white12),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Table(
-                              columnWidths: const {
-                                0: FlexColumnWidth(2),
-                                1: FlexColumnWidth(1),
-                              },
-                              defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-                              children: sortedKeys.map((costo) {
-                                final cantidad = counts[costo] ?? 0;
-                                final isLast = costo == sortedKeys.last;
-                                return TableRow(
-                                  decoration: BoxDecoration(
-                                    border: isLast ? null : const Border(
-                                      bottom: BorderSide(color: Colors.white12),
-                                    ),
-                                  ),
-                                  children: [
-                                    Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 12,
-                                        horizontal: 16,
-                                      ),
-                                      child: Text(
-                                        CurrencyFormatter.format(costo),
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 16,
-                                        ),
-                                      ),
-                                    ),
-                                    Padding(
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 12,
-                                        horizontal: 16,
-                                      ),
-                                      child: Text(
-                                        '$cantidad',
-                                        textAlign: TextAlign.end,
-                                        style: const TextStyle(
-                                          color: AppColors.primary,
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                );
-                              }).toList(),
+                              'Error al cargar datos',
+                              style: TextStyle(color: Colors.red[300]),
                             ),
                           ),
-                      ],
-                    );
-                  } catch (e) {
-                    debugPrint('Error construyendo tabla de resumen: $e');
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: Text(
-                          'Error al procesar datos',
-                          style: TextStyle(color: Colors.red[300]),
-                        ),
-                      ),
-                    );
-                  }
-                },
+                        );
+                      }
+                  
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(40),
+                            child: CircularProgressIndicator(color: AppColors.primary),
+                          ),
+                        );
+                      }
+                  
+                      if (!snapshot.hasData) {
+                        return const Center(
+                          child: Padding(
+                            padding: EdgeInsets.all(20),
+                            child: Text(
+                              'No hay datos disponibles',
+                              style: TextStyle(color: Colors.white54),
+                            ),
+                          ),
+                        );
+                      }
+                  
+                      try {
+                        final Map<int, int> counts = {};
+                        int totalIncome = 0;
+                        int totalVehicles = 0;
+                  
+                        for (var doc in snapshot.data!.docs) {
+                          try {
+                            final data = doc.data() as Map<String, dynamic>?;
+                            if (data == null) continue;
+                  
+                            final costoValue = data['costo'];
+                            if (costoValue == null) continue;
+                  
+                            final costo = (costoValue is int)
+                                ? costoValue
+                                : (costoValue as num).toInt();
+                  
+                            counts[costo] = (counts[costo] ?? 0) + 1;
+                            totalIncome += costo;
+                            totalVehicles += 1;
+                          } catch (e) {
+                            debugPrint('Error procesando documento en resumen: $e');
+                          }
+                        }
+                  
+                        final sortedKeys = counts.keys.toList()..sort();
+                        debugPrint('Total de vehículos: $totalVehicles, Ingresos: $totalIncome');
+                  
+                        return Column(
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceAround,
+                              children: [
+                                _buildStat('Total', '$totalVehicles'),
+                                _buildStat('Ingresos', CurrencyFormatter.format(totalIncome)),
+                              ],
+                            ),
+                            const Divider(color: Colors.white24, height: 32),
+                  
+                            if (sortedKeys.isEmpty)
+                              const Padding(
+                                padding: EdgeInsets.all(20),
+                                child: Text(
+                                  'No hay salidas registradas hoy',
+                                  style: TextStyle(color: Colors.white54),
+                                  textAlign: TextAlign.center,
+                                ),
+                              )
+                            else
+                              Container(
+                                decoration: BoxDecoration(
+                                  border: Border.all(color: Colors.white12),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Table(
+                                  columnWidths: const {
+                                    0: FlexColumnWidth(2),
+                                    1: FlexColumnWidth(1),
+                                  },
+                                  defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+                                  children: sortedKeys.map((costo) {
+                                    final cantidad = counts[costo] ?? 0;
+                                    final isLast = costo == sortedKeys.last;
+                                    return TableRow(
+                                      decoration: BoxDecoration(
+                                        border: isLast ? null : const Border(
+                                          bottom: BorderSide(color: Colors.white12),
+                                        ),
+                                      ),
+                                      children: [
+                                        Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 12,
+                                            horizontal: 16,
+                                          ),
+                                          child: Text(
+                                            CurrencyFormatter.format(costo),
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 16,
+                                            ),
+                                          ),
+                                        ),
+                                        Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            vertical: 12,
+                                            horizontal: 16,
+                                          ),
+                                          child: Text(
+                                            '$cantidad',
+                                            textAlign: TextAlign.end,
+                                            style: const TextStyle(
+                                              color: AppColors.primary,
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    );
+                                  }).toList(),
+                                ),
+                              ),
+                          ],
+                        );
+                      } catch (e) {
+                        debugPrint('Error construyendo tabla de resumen: $e');
+                        return Center(
+                          child: Padding(
+                            padding: const EdgeInsets.all(20),
+                            child: Text(
+                              'Error al procesar datos',
+                              style: TextStyle(color: Colors.red[300]),
+                            ),
+                          ),
+                        );
+                      }
+                    },
+                  ),
+                ),
               ),
 
               const SizedBox(height: 24),
