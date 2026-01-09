@@ -8,6 +8,12 @@ import 'widgets/stat_card.dart';
 import 'widgets/filter_chips.dart';
 import 'widgets/active_vehicle_item.dart';
 import 'widgets/completed_vehicle_item.dart';
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart'; // Para detectar la plataforma
+import 'package:excel/excel.dart' hide Border;
+import 'package:file_saver/file_saver.dart';
+import 'package:share_plus/share_plus.dart'; // Importar Share
+import 'package:intl/intl.dart';
 
 class ListScreen extends StatefulWidget {
   const ListScreen({super.key});
@@ -94,7 +100,9 @@ class _ListScreenState extends State<ListScreen> {
                   exits++;
                   final costoValue = data['costo'];
                   if (costoValue != null) {
-                    income += (costoValue is int) ? costoValue : (costoValue as num).toInt();
+                    income +=
+                    (costoValue is int) ? costoValue : (costoValue as num)
+                        .toInt();
                   }
                 }
               } catch (e) {
@@ -184,7 +192,8 @@ class _ListScreenState extends State<ListScreen> {
             int? numB = int.tryParse(ticketB);
 
             if (numA != null && numB != null) {
-              return _sortAscending ? numA.compareTo(numB) : numB.compareTo(numA);
+              return _sortAscending ? numA.compareTo(numB) : numB.compareTo(
+                  numA);
             }
 
             return _sortAscending
@@ -219,12 +228,144 @@ class _ListScreenState extends State<ListScreen> {
     return list;
   }
 
+
+  Future<void> _exportToExcel() async {
+    if (_fullList.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No hay datos para exportar')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      var excel = Excel.createExcel();
+      String defaultSheet = excel.getDefaultSheet() ?? 'Sheet1';
+      Sheet sheet = excel[defaultSheet];
+
+      // 1. Encabezados
+      List<CellValue> headers = [
+        TextCellValue('Ticket'),
+        TextCellValue('Placa'),
+        TextCellValue('Tipo'),
+        TextCellValue('Hora Entrada'),
+        TextCellValue('Hora Salida'),
+        TextCellValue('Estado'),
+        TextCellValue('Costo'),
+        TextCellValue('Tiempo Total'),
+      ];
+      sheet.appendRow(headers);
+
+      // 2. Llenar datos
+      for (var doc in _fullList) {
+        final data = doc.data() as Map<String, dynamic>;
+
+        String ticket = data['ticket']?.toString() ?? 'S/N';
+        String placa = data['placa']?.toString() ?? '---';
+        String tipo = data['tipo']?.toString() ?? 'Carro';
+        String estado = data['estado'] ?? 'ADENTRO';
+
+        Timestamp? entradaTs = data['fecha_entrada'] ?? data['entrada'];
+        Timestamp? salidaTs = data['fecha_salida'] ?? data['salida'];
+
+        String entradaStr = entradaTs != null
+            ? DateFormat('HH:mm:ss').format(entradaTs.toDate())
+            : '--';
+        String salidaStr = salidaTs != null
+            ? DateFormat('HH:mm:ss').format(salidaTs.toDate())
+            : '--';
+
+        String costoStr = '0';
+        if (data['costo'] != null) {
+          costoStr = CurrencyFormatter.format(data['costo']);
+        }
+
+        String tiempoStr = '';
+        if (entradaTs != null && salidaTs != null) {
+          final duration = salidaTs.toDate().difference(entradaTs.toDate());
+          final hours = duration.inHours;
+          final minutes = duration.inMinutes.remainder(60);
+          tiempoStr = '${hours}h ${minutes}m';
+        }
+
+        sheet.appendRow([
+          TextCellValue(ticket),
+          TextCellValue(placa),
+          TextCellValue(tipo),
+          TextCellValue(entradaStr),
+          TextCellValue(salidaStr),
+          TextCellValue(estado),
+          TextCellValue(costoStr),
+          TextCellValue(tiempoStr),
+        ]);
+      }
+
+      // 3. Generar bytes
+      var fileBytes = excel.save();
+
+      if (fileBytes != null) {
+        String fileName = 'Reporte_${DateFormat('dd-MM-yyyy_HHmm').format(DateTime.now())}.xlsx';
+        Uint8List data = Uint8List.fromList(fileBytes);
+
+        // --- LÓGICA HÍBRIDA ---
+        // Si es Web o Escritorio (Windows/Mac/Linux) -> Usamos FileSaver
+        if (kIsWeb ||
+            (defaultTargetPlatform == TargetPlatform.windows) ||
+            (defaultTargetPlatform == TargetPlatform.linux) ||
+            (defaultTargetPlatform == TargetPlatform.macOS)) {
+
+          await FileSaver.instance.saveFile(
+            name: fileName, // Sin extensión aquí, file_saver la pone
+            bytes: data,
+            ext: 'xlsx',
+            mimeType: MimeType.microsoftExcel,
+          );
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Reporte guardado en descargas')),
+            );
+          }
+
+        } else {
+          // Si es Móvil (Android/iOS) -> Usamos Share
+          // Esto evita problemas de permisos y carpetas ocultas
+          final XFile file = XFile.fromData(
+              data,
+              mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+              name: fileName
+          );
+
+          await Share.shareXFiles(
+            [file],
+            text: 'Adjunto el reporte de vehículos del día.',
+          );
+        }
+      }
+
+    } catch (e) {
+      debugPrint('Error exportando: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final activeList = _fullList.where((doc) {
       try {
         final data = doc.data() as Map<String, dynamic>?;
-        if (data == null || (data['estado'] ?? 'ADENTRO') != 'ADENTRO') return false;
+        if (data == null || (data['estado'] ?? 'ADENTRO') != 'ADENTRO') {
+          return false;
+        }
 
         // Aplicar búsqueda
         if (_searchQuery.isNotEmpty) {
@@ -445,79 +586,84 @@ class _ListScreenState extends State<ListScreen> {
                                   (doc) => CompletedVehicleItem(doc: doc),
                             ),
                           ],
-                        ] else if (_searchQuery.isNotEmpty && showSeparated) ...[
-                          if (activeList.isNotEmpty) ...[
-                            const Padding(
-                              padding: EdgeInsets.only(left: 4, bottom: 8),
-                              child: Text(
-                                'EN CURSO',
-                                style: TextStyle(
-                                  color: Colors.white54,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 1,
-                                ),
-                              ),
-                            ),
-                            ...activeList.map(
-                                  (doc) => ActiveVehicleItem(doc: doc),
-                            ),
-                            const SizedBox(height: 16),
-                          ],
-                          if (completedList.isNotEmpty) ...[
-                            const Padding(
-                              padding: EdgeInsets.only(left: 4, bottom: 8),
-                              child: Text(
-                                'FINALIZADOS',
-                                style: TextStyle(
-                                  color: Colors.white54,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 1,
-                                ),
-                              ),
-                            ),
-                            ...completedList.map(
-                                  (doc) => CompletedVehicleItem(doc: doc),
-                            ),
-                          ],
-                          if (activeList.isEmpty && completedList.isEmpty)
-                            const Padding(
-                              padding: EdgeInsets.only(top: 40),
-                              child: Center(
+                        ] else
+                          if (_searchQuery.isNotEmpty && showSeparated) ...[
+                            if (activeList.isNotEmpty) ...[
+                              const Padding(
+                                padding: EdgeInsets.only(left: 4, bottom: 8),
                                 child: Text(
-                                  'No se encontraron tickets',
-                                  style: TextStyle(color: Colors.white38),
+                                  'EN CURSO',
+                                  style: TextStyle(
+                                    color: Colors.white54,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 1,
+                                  ),
                                 ),
                               ),
-                            ),
-                        ] else ...[
-                          if (currentList.isEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 40),
-                              child: Center(
+                              ...activeList.map(
+                                    (doc) => ActiveVehicleItem(doc: doc),
+                              ),
+                              const SizedBox(height: 16),
+                            ],
+                            if (completedList.isNotEmpty) ...[
+                              const Padding(
+                                padding: EdgeInsets.only(left: 4, bottom: 8),
                                 child: Text(
-                                  _searchQuery.isNotEmpty
-                                      ? 'No se encontraron tickets'
-                                      : 'No hay vehículos en esta sección',
-                                  style: const TextStyle(color: Colors.white38),
+                                  'FINALIZADOS',
+                                  style: TextStyle(
+                                    color: Colors.white54,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 1,
+                                  ),
                                 ),
                               ),
-                            )
-                          else
-                            ...currentList.map((doc) {
-                              try {
-                                final data = doc.data() as Map<String, dynamic>?;
-                                final estado = data?['estado'] ?? 'ADENTRO';
-                                return estado == 'ADENTRO'
-                                    ? ActiveVehicleItem(doc: doc)
-                                    : CompletedVehicleItem(doc: doc);
-                              } catch (e) {
-                                debugPrint('Error renderizando item: $e');
-                                return const SizedBox.shrink();
-                              }
-                            }),
-                        ],
+                              ...completedList.map(
+                                    (doc) => CompletedVehicleItem(doc: doc),
+                              ),
+                            ],
+                            if (activeList.isEmpty && completedList.isEmpty)
+                              const Padding(
+                                padding: EdgeInsets.only(top: 40),
+                                child: Center(
+                                  child: Text(
+                                    'No se encontraron tickets',
+                                    style: TextStyle(color: Colors.white38),
+                                  ),
+                                ),
+                              ),
+                          ] else
+                            ...[
+                              if (currentList.isEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 40),
+                                  child: Center(
+                                    child: Text(
+                                      _searchQuery.isNotEmpty
+                                          ? 'No se encontraron tickets'
+                                          : 'No hay vehículos en esta sección',
+                                      style: const TextStyle(
+                                          color: Colors.white38),
+                                    ),
+                                  ),
+                                )
+                              else
+                                ...currentList.map((doc) {
+                                  try {
+                                    final data = doc.data() as Map<
+                                        String,
+                                        dynamic>?;
+                                    final estado = data?['estado'] ?? 'ADENTRO';
+                                    return estado == 'ADENTRO'
+                                        ? ActiveVehicleItem(doc: doc)
+                                        : CompletedVehicleItem(doc: doc);
+                                  } catch (e) {
+                                    debugPrint('Error renderizando item: $e');
+                                    return const SizedBox.shrink();
+                                  }
+                                }),
+                            ],
                         const SizedBox(height: 80),
                       ],
                     ),
@@ -647,9 +793,11 @@ class _ListScreenState extends State<ListScreen> {
               ),
             ),
           ),
+          // --- BOTÓN DE EXCEL AQUÍ ---
           IconButton(
-            onPressed: () {},
-            icon: const Icon(Icons.calendar_month, color: Colors.white),
+            onPressed: _fullList.isEmpty ? null : _exportToExcel,
+            tooltip: 'Exportar a Excel',
+            icon: const Icon(Icons.file_download, color: Colors.white),
           ),
         ],
       ),
