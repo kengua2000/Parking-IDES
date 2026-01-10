@@ -183,7 +183,7 @@ class _MainScreenState extends State<MainScreen> {
         body: SafeArea(
           child: Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 480),
+              constraints: const BoxConstraints(maxWidth: 600),
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(20),
                 child: Column(
